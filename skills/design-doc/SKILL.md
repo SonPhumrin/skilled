@@ -6,6 +6,8 @@ disable-model-invocation: true
 
 This skill produces the architecture document that `write-spec` doesn't have room for: researched alternatives, module/seam tradeoffs, and (for a new project) the tech-stack and design-system choices. Reach for it before `/write-spec` when the work has a real architecture question — not for every feature.
 
+Do NOT interview the user; build on the interview (`/domain-interview` or `/clarify-requirements`) and any conversation that already happened.
+
 ## Process
 
 1. If a repo already exists, explore it and read `CONTEXT.md`/`ARCHITECTURE.md`/any ADRs in the area you're touching, so the design uses established terms and respects existing constraints. If this is a greenfield project, skip exploration; treat whatever stack, UI framework, or color scheme you've already been given as decided inputs to record, not questions to re-ask.

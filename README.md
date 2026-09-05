@@ -200,10 +200,17 @@ Say you're adding rate limiting to an API, in a repo that already has `CONTEXT.m
 ```
 The interview pins down what "rate limiting" means here before any code exists: fixed window or token bucket, per-user or per-API-key, what happens to the 429 response, whether limits are configurable per plan. Answers get written into `CONTEXT.md` (new terms) and an ADR if the approach is non-obvious. You skip this and `/implement` will guess "reasonable defaults" that may not be yours.
 
+Token bucket vs. fixed window, and where the bucket state lives, is a real architecture question — not something to leave to `/write-spec`'s "Implementation Decisions" section. Worth a design doc first:
+
+```
+> /design-doc
+```
+No arguments needed — it reads back through the interview you just had. It explores the repo (respecting `CONTEXT.md`/existing ADRs), calls the Skill tool with `"research"` for anything it needs to check (e.g. how your rate-limit store's client handles atomic increments), calls `"module-design"` to compare a token-bucket module against a fixed-window one on depth and seam placement, and writes the result to `docs/design/rate-limiting.md` — a local file, not published anywhere. For a new project instead of an existing feature, this is also where you'd hand it a UI framework, component-library CLI, or color scheme to record under "Technology & Framework Choices."
+
 ```
 > /write-spec
 ```
-Turns the interview into a spec on your issue tracker — the single source of truth `/write-tickets` and `/implement` both read from.
+Turns the interview into a spec on your issue tracker — the single source of truth `/write-tickets` and `/implement` both read from. Since `docs/design/rate-limiting.md` exists, `/write-spec` reads it and references its architecture decisions instead of re-deriving them.
 
 ```
 > /write-tickets
