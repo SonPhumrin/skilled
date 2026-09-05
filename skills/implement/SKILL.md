@@ -28,6 +28,8 @@ Run typechecking after each slice and the relevant test file with it. Run the fu
 
 ## Closing out
 
+If the ticket's acceptance criteria describe something a person would see or click in a browser, call the Skill tool with "verify-in-browser" and resolve what it finds before moving on.
+
 Call the Skill tool with "review-diff" against the point you started from. Work its findings before committing, and say which findings you accepted and which you are leaving, with the reason.
 
 Commit to the current branch. The commit message says what changed and why, and references the ticket or spec.
