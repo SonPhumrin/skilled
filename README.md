@@ -42,6 +42,7 @@ flowchart TD
     Setup -- "yes" --> Sharpen["/domain-interview<br/>(or /clarify-requirements, no repo)"]
 
     Sharpen --> Multi{"Multi-session build?"}
+    Multi -- "yes, real architecture question" --> DesignDoc["/design-doc"] --> Spec
     Multi -- "yes" --> Spec["/write-spec"] --> Tickets["/write-tickets"]
     Tickets --> Build["/implement (per ticket)<br/>or /implement-spec (whole graph)"]
     Multi -- "no" --> Build
@@ -131,6 +132,7 @@ Every skill here is a plain `SKILL.md` under the open [Agent Skills](https://age
 | `domain-interview` `[U]` | The same interview, sharpening `CONTEXT.md` and ADRs as it goes. |
 | `requirements-interview` `[M]` | The interview primitive other skills call. |
 | `domain-modeling` `[M]` | Build and sharpen domain terms by challenging them against scenarios. |
+| `design-doc` `[U]` | Research and write a pre-spec architecture doc, for work big enough to need one. |
 | `write-spec` `[U]` | Turn this conversation into a spec on the issue tracker. |
 | `write-tickets` `[U]` | Break a plan into tracer-bullet tickets with blocking edges declared. |
 | `decision-map` `[U]` | Plan large work as a map of decision tickets, resolved one at a time. |
@@ -225,6 +227,7 @@ If a bug shows up later — say the limiter double-counts under concurrent reque
 - **No repo yet, or a plan that isn't tied to code** → `/clarify-requirements` instead of `/domain-interview`: same interview, no `CONTEXT.md`/ADR paper trail.
 - **A question you need to *feel*, not reason about** (a state machine, a UI layout) → let `prototype` build a throwaway answer, then `/handoff` the finding back into the main interview.
 - **An effort too foggy to scope in one sitting** → `/decision-map` charts it as a map of decision tickets resolved one at a time, then hands off to `/write-spec` once the fog clears. Slower than the main flow — reserve it for genuine fog, not a well-scoped feature that's merely large.
+- **A real architecture question, or a new project's stack/design-system to pin down** → `/design-doc` researches it and writes a local `design.md` before `/write-spec`; skip it for features whose implementation decisions fit in the spec itself.
 - **A session went badly** → `/retro` afterward proposes fixes to your *environment* (a missing doc, a check that should've been automated), not the code.
 - **A message didn't land** → `/explain-again`, on the spot, re-pitches what was just said in plain English.
 
