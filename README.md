@@ -82,7 +82,7 @@ cd ~/Documents/skilled
 ./install.sh /path/to/your-project
 ```
 
-That symlinks all 39 skills into `your-project/.claude/skills/` and `your-project/.agents/skills/`. Per-project, not global: a project you haven't pointed `install.sh` at never sees these skills, and running it against several projects is normal.
+That symlinks all 40 skills into `your-project/.claude/skills/` and `your-project/.agents/skills/`. Per-project, not global: a project you haven't pointed `install.sh` at never sees these skills, and running it against several projects is normal.
 
 ```bash
 ./install.sh /path/to/your-project --uninstall   # remove them from that project
