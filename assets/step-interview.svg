@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 400" width="420" height="400" role="img" aria-label="skilled step: interview">
+<style>
+  text { font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif; }
+  .node rect { stroke-width:1.5; }
+  .node-u rect { fill:#3b5bdb; stroke:#2437a8; }
+  .node-u text { fill:#ffffff; }
+  .node-m rect { fill:#7048e8; stroke:#5f3dc4; }
+  .node-m text { fill:#ffffff; }
+  .node-doc rect { fill:#495057; stroke:#343a40; stroke-dasharray:4 3; }
+  .node-doc text { fill:#ffffff; }
+  .node-end rect { fill:#2f9e44; stroke:#2b8a3e; }
+  .node-end text { fill:#ffffff; }
+  .node-chip rect { fill:#e9ecef; stroke:#ced4da; }
+  .node-chip text { fill:#343a40; }
+  .edge { stroke:#868e96; stroke-width:2; fill:none; }
+  .edge-dash { stroke:#868e96; stroke-width:1.5; fill:none; stroke-dasharray:5 4; }
+  .edge-arrow { fill:#868e96; }
+  .edge-label { fill:#495057; font-size:12px; }
+  .title-label { font-weight:600; font-size:14px; }
+  .sub-label { font-size:11.5px; }
+  .panel rect { fill:none; stroke:#adb5bd; stroke-width:1.25; stroke-dasharray:6 5; }
+  .panel-title { fill:#343a40; font-size:12.5px; font-weight:600; }
+  .caption { fill:#212529; font-size:13px; }
+  @media (prefers-color-scheme: dark) {
+    .node-u rect { fill:#4c6ef5; stroke:#91a7ff; }
+    .node-m rect { fill:#9775fa; stroke:#d0bfff; }
+    .node-doc rect { fill:#343a40; stroke:#adb5bd; }
+    .node-end rect { fill:#37b24d; stroke:#8ce99a; }
+    .node-chip rect { fill:#343a40; stroke:#868e96; }
+    .node-chip text { fill:#f1f3f5; }
+    .edge, .edge-dash { stroke:#adb5bd; }
+    .edge-arrow { fill:#adb5bd; }
+    .edge-label { fill:#dee2e6; }
+    .panel rect { stroke:#868e96; }
+    .panel-title { fill:#e9ecef; }
+    .caption { fill:#f1f3f5; }
+  }
+</style>
+<defs>
+  <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+    <path d="M0,0 L10,5 L0,10 z" class="edge-arrow"/>
+  </marker>
+</defs>
+<g class="node node-doc">
+<rect x="60.0" y="25.0" width="300" height="60" rx="12" ry="12"/>
+<text x="210.0" y="51.5" text-anchor="middle" font-size="12" class="sub-label">“add per-user rate</text>
+<text x="210.0" y="68.5" text-anchor="middle" font-size="12" class="sub-label">limiting to the API”</text>
+</g>
+<g class="node node-u">
+<rect x="80.0" y="160.0" width="260" height="60" rx="12" ry="12"/>
+<text x="210.0" y="195.0" text-anchor="middle" font-size="14" font-weight="600" class="title-label">/domain-interview</text>
+</g>
+<g class="node node-doc">
+<rect x="60.0" y="295.0" width="300" height="70" rx="12" ry="12"/>
+<text x="210.0" y="318.0" text-anchor="middle" font-size="13" font-weight="600" class="title-label">CONTEXT.md</text>
+<text x="210.0" y="335.0" text-anchor="middle" font-size="11" class="sub-label">(new terms) + ADR</text>
+<text x="210.0" y="352.0" text-anchor="middle" font-size="11" class="sub-label">(if non-obvious)</text>
+</g>
+<path d="M210,85.0 L210,160.0" class="edge" marker-end="url(#arrow)"/>
+<path d="M210,220.0 L210,295.0" class="edge" marker-end="url(#arrow)"/>
+<text x="210.0" y="249.5" text-anchor="middle" class="edge-label">pins down what “rate limiting” means here</text>
+</svg>

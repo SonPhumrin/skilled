@@ -32,44 +32,9 @@ flowchart LR
 
 ### Use
 
-Once installed, most of this runs itself: model-invoked skills (marked `[M]` below) fire on their own when the conversation matches their trigger. User-invoked skills (`[U]`) are typed, like `/skilled` or `/implement`. The typical path through a piece of work:
+Once installed, most of this runs itself: model-invoked skills fire on their own when the conversation matches their trigger. User-invoked skills are typed, like `/skilled` or `/implement`. The typical path through a piece of work:
 
-```mermaid
-flowchart TD
-    Idea(["New idea, bug, or request"]) --> Setup{"CONTEXT.md and<br/>ARCHITECTURE.md exist<br/>in this repo?"}
-    Setup -- "no" --> SkilledSetup["/skilled-setup<br/>(once per repo)"]
-    SkilledSetup --> Sharpen
-    Setup -- "yes" --> Sharpen["/domain-interview<br/>(or /clarify-requirements, no repo)"]
-
-    Sharpen --> Multi{"Multi-session build?"}
-    Multi -- "yes" --> Spec["/write-spec"] --> Tickets["/write-tickets"]
-    Tickets --> Build["/implement (per ticket)<br/>or /implement-spec (whole graph)"]
-    Multi -- "no" --> Build
-
-    Build --> TDD["tdd<br/>red / green / refactor<br/>at agreed seams"]
-    TDD --> Review["review-diff"]
-    Review --> Shipped(["committed"])
-
-    Triage["/triage<br/>bugs & requests piling up"] --> Sharpen
-    DecisionMap["/decision-map<br/>huge, foggy effort"] --> Spec
-
-    Build -.-> Design
-
-    subgraph Design["design skills, fire on their own during Build"]
-        direction LR
-        SimpleFirst["simple-first"]
-        Principles["design-principles"]
-        ModuleDesign["module-design"]
-        Readable["readable-code"]
-        Jobs["background-jobs"]
-        DB["database-performance"]
-        Obs["observability"]
-    end
-
-    style Idea fill:#2d2d2d,color:#fff,stroke:#888
-    style Shipped fill:#2d2d2d,color:#fff,stroke:#888
-    style Design fill:#1b1b1b,color:#fff,stroke:#666
-```
+<p align="center"><img src="assets/workflow.svg" alt="How a change moves through skilled: idea → alignment (domain-interview, or skilled-setup first time) → optional design-doc → write-spec → write-tickets → implement (driving tdd and all seven design-quality skills) → verify-in-browser → review-diff → committed. Triage and decision-map feed in from the side for piled-up bugs and foggy effort." width="720"></p>
 
 `/skilled` is the entry point when you forget any of this: it names every user-invoked skill and reports which project documents are missing. Read [CONVENTIONS.md](CONVENTIONS.md) for how the model-invoked/user-invoked split works and why one skill can call another.
 
@@ -81,7 +46,7 @@ cd ~/Documents/skilled
 ./install.sh /path/to/your-project
 ```
 
-That symlinks all 39 skills into `your-project/.claude/skills/` and `your-project/.agents/skills/`. Per-project, not global: a project you haven't pointed `install.sh` at never sees these skills, and running it against several projects is normal.
+That symlinks all 41 skills into `your-project/.claude/skills/` and `your-project/.agents/skills/`. Per-project, not global: a project you haven't pointed `install.sh` at never sees these skills, and running it against several projects is normal.
 
 ```bash
 ./install.sh /path/to/your-project --uninstall   # remove them from that project
@@ -107,7 +72,7 @@ Every skill here is a plain `SKILL.md` under the open [Agent Skills](https://age
 | OpenCode | both `<project>/.claude/skills/` and `<project>/.agents/skills/` |
 | Antigravity (CLI + IDE) | `<project>/.agents/skills/` (its project scope) |
 
-**One real gap, not a bug**: `disable-model-invocation` (the field that keeps the 22 user-invoked skills out of the model's own reach) is a Claude Code extension. OpenCode and Antigravity both ignore unrecognized frontmatter keys per the open spec, so on those two harnesses every skill here is model-selectable, including the ones meant to be typed by hand. There is no portable "user-only" field in the standard today. See [tests/MANUAL-CHECKS.md](tests/MANUAL-CHECKS.md).
+**One real gap, not a bug**: `disable-model-invocation` (the field that keeps the 23 user-invoked skills out of the model's own reach) is a Claude Code extension. OpenCode and Antigravity both ignore unrecognized frontmatter keys per the open spec, so on those two harnesses every skill here is model-selectable, including the ones meant to be typed by hand. There is no portable "user-only" field in the standard today. See [tests/MANUAL-CHECKS.md](tests/MANUAL-CHECKS.md).
 
 `~/.agents/skills/` (the *global*, home-directory version of that second path) is deliberately never touched: it is managed by the separate `npx skills` installer with its own lockfile, and this repo only ever writes the project-local `.agents/skills/` inside a specific repo, never the one in your home directory.
 
@@ -131,6 +96,7 @@ Every skill here is a plain `SKILL.md` under the open [Agent Skills](https://age
 | `domain-interview` `[U]` | The same interview, sharpening `CONTEXT.md` and ADRs as it goes. |
 | `requirements-interview` `[M]` | The interview primitive other skills call. |
 | `domain-modeling` `[M]` | Build and sharpen domain terms by challenging them against scenarios. |
+| `design-doc` `[U]` | Research and write a pre-spec architecture doc, for work big enough to need one. |
 | `write-spec` `[U]` | Turn this conversation into a spec on the issue tracker. |
 | `write-tickets` `[U]` | Break a plan into tracer-bullet tickets with blocking edges declared. |
 | `decision-map` `[U]` | Plan large work as a map of decision tickets, resolved one at a time. |
@@ -139,7 +105,7 @@ Every skill here is a plain `SKILL.md` under the open [Agent Skills](https://age
 
 | Skill | |
 | :--- | :--- |
-| `implement` `[U]` | Build one ticket from a spec, driving `tdd` at agreed seams, closing with `review-diff`. |
+| `implement` `[U]` | Build one ticket from a spec, driving `tdd` at agreed seams, closing with `verify-in-browser` and `review-diff`. |
 | `implement-spec` `[U]` | Build a whole spec on one branch: tickets as a task graph, implementer subagents across the ready frontier, one PR. |
 | `tdd` `[M]` | Red, green, refactor. |
 | `prototype` `[M]` | Throwaway build to answer a design question. |
@@ -157,6 +123,7 @@ Every skill here is a plain `SKILL.md` under the open [Agent Skills](https://age
 | `background-jobs` `[M]` | Queues, idempotency, retries, dead-letter queues, the outbox pattern. |
 | `database-performance` `[M]` | Indexes, N+1, pagination, pooling, transactions. |
 | `observability` `[M]` | What to log, what to measure, what to trace. |
+| `verify-in-browser` `[M]` | Drive the app in a real browser to check a ticket's acceptance criteria, UI, and translations. |
 | `review-diff` `[M]` | Two-axis review of the diff: standards and spec. |
 | `architecture-review` `[U]` | Scan a codebase for deepening opportunities, then work the one you pick. |
 | `enforce-module-boundaries` `[U]` | Wire dependency-cruiser so package internals are unreachable from outside. TypeScript. |
@@ -190,32 +157,90 @@ When you don't remember which skill fits, type `/skilled` — it reads your repo
 
 ### Worked example: shipping a feature
 
-Say you're adding rate limiting to an API, in a repo that already has `CONTEXT.md` and `ARCHITECTURE.md` (from a prior `/skilled-setup`).
+Say you're adding rate limiting to an API, in a repo that already has `CONTEXT.md` and `ARCHITECTURE.md` (from a prior `/skilled-setup`). Terminal on the left of each step is illustrative — the shape of what comes back, not a literal transcript — the diagram on the right is what actually moved.
 
 ```
+$ claude
 > /domain-interview
   add per-user rate limiting to the public API
+
+  Fixed window or token bucket? Per-user or per-API-key? What happens
+  on the 429 — reject, queue, degrade? Configurable per plan?
+  ...
+  → writes new terms into CONTEXT.md
+  → opens docs/adr/0007-rate-limit-algorithm.md (undecided, flagged for /design-doc)
 ```
-The interview pins down what "rate limiting" means here before any code exists: fixed window or token bucket, per-user or per-API-key, what happens to the 429 response, whether limits are configurable per plan. Answers get written into `CONTEXT.md` (new terms) and an ADR if the approach is non-obvious. You skip this and `/implement` will guess "reasonable defaults" that may not be yours.
+
+<p align="center"><img src="assets/step-interview.svg" alt="idea to CONTEXT.md and ADR via /domain-interview" width="360"></p>
+
+The interview pins down what "rate limiting" means here before any code exists: fixed window or token bucket, per-user or per-API-key, what happens to the 429 response, whether limits are configurable per plan. Answers get written into `CONTEXT.md` (new terms) and an ADR if the approach is non-obvious. Skip this and `/implement` will guess "reasonable defaults" that may not be yours.
+
+Token bucket vs. fixed window, and where the bucket state lives, is a real architecture question — not something to leave to `/write-spec`'s "Implementation Decisions" section. Worth a design doc first:
+
+```
+> /design-doc
+
+  reading CONTEXT.md, docs/adr/0007-rate-limit-algorithm.md...
+  calling Skill "research" — how does the rate-limit store's client
+    handle atomic increments?
+  calling Skill "module-design" — token-bucket module vs. fixed-window,
+    compared on depth and seam placement
+  → docs/design/rate-limiting.md written
+```
+
+<p align="center"><img src="assets/step-design-doc.svg" alt="interview answers to docs/design/rate-limiting.md via /design-doc, calling research and module-design" width="450"></p>
+
+No arguments needed — it reads back through the interview you just had. It explores the repo (respecting `CONTEXT.md`/existing ADRs), calls the Skill tool with `"research"` for anything it needs to check, calls `"module-design"` to compare the two shapes, and writes the result to `docs/design/rate-limiting.md` — a local file, not published anywhere. For a new project instead of an existing feature, this is also where you'd hand it a UI framework, component-library CLI, or color scheme to record under "Technology & Framework Choices."
 
 ```
 > /write-spec
+
+  reading the interview + docs/design/rate-limiting.md...
+  → RATE-142: "Per-user rate limiting" opened on the issue tracker
 ```
-Turns the interview into a spec on your issue tracker — the single source of truth `/write-tickets` and `/implement` both read from.
+
+<p align="center"><img src="assets/step-write-spec.svg" alt="interview and design doc to a spec on the issue tracker via /write-spec" width="420"></p>
+
+Turns the interview into a spec on your issue tracker — the single source of truth `/write-tickets` and `/implement` both read from. Since `docs/design/rate-limiting.md` exists, `/write-spec` reads it and references its architecture decisions instead of re-deriving them.
 
 ```
 > /write-tickets
+
+  splitting RATE-142 into tracer-bullet tickets...
+  → RATE-143 add token-bucket store
+  → RATE-144 wire middleware (blocked by RATE-143)
+  → RATE-145 add 429 response + headers (blocked by RATE-144)
 ```
-Splits the spec into tracer-bullet tickets with blocking edges declared, e.g. "add token-bucket store" blocks "wire middleware" blocks "add 429 response + headers." Small enough each survives one `/implement` pass; ordered enough `/implement-spec` can compute what's ready to build in parallel.
+
+<p align="center"><img src="assets/step-write-tickets.svg" alt="spec to tracer-bullet tickets with blocking edges via /write-tickets" width="420"></p>
+
+Splits the spec into tracer-bullet tickets with blocking edges declared. Small enough each survives one `/implement` pass; ordered enough `/implement-spec` can compute what's ready to build in parallel.
 
 ```
-> /implement RATE-142
+> /implement RATE-143
+
+  tdd: red → green → refactor at the agreed seam
+  simple-first: pushes back — a queue when an in-memory counter would do
+  database-performance: flags an unindexed lookup on the bucket table
+  verify-in-browser: skipped, no web UI in this ticket
+  review-diff: standards clean, spec matches RATE-143
+  → committed
 ```
-Builds one ticket. It drives `tdd` at the seams you agreed in the interview (red → green → refactor), and while it writes code, model-invoked skills fire on their own without you calling them: `simple-first` pushes back if the implementation reaches for a queue when an in-memory counter would do; `database-performance` flags an unindexed lookup if the bucket store hits Postgres per request; `observability` asks what gets logged when a user gets throttled. Before it lets you commit, `review-diff` checks the diff against both your team's standards and the ticket's actual spec — not just "does it run," but "does it do what RATE-142 said."
+
+<p align="center"><img src="assets/step-implement.svg" alt="one ticket to committed via /implement, with tdd and the design skills firing, then review-diff" width="440"></p>
+
+Builds one ticket. It drives `tdd` at the seams you agreed in the interview (red → green → refactor), and while it writes code, model-invoked skills fire on their own without you calling them: `simple-first` pushes back if the implementation reaches for a queue when an in-memory counter would do; `database-performance` flags an unindexed lookup if the bucket store hits Postgres per request; `observability` asks what gets logged when a user gets throttled. If the ticket had touched a screen — say, a "requests remaining" indicator in the UI — `verify-in-browser` would drive it in a real browser first. Before it lets you commit, `review-diff` checks the diff against both your team's standards and the ticket's actual spec — not just "does it run," but "does it do what RATE-143 said."
 
 ```
 > /implement-spec
+
+  ready frontier: RATE-143 (no blockers)
+  RATE-143 done → RATE-144 now ready → RATE-145 now ready
+  → one PR opened covering RATE-143, RATE-144, RATE-145
 ```
+
+<p align="center"><img src="assets/step-implement-spec.svg" alt="whole ticket graph to one PR via /implement-spec, running implementer subagents across the ready frontier" width="420"></p>
+
 Alternative to running `/implement` per ticket one at a time: this reads the whole ticket graph, runs implementer subagents across every ticket whose blockers are already done, and lands the result as one PR. Reach for it when the graph is wide (several independent tickets) and you'd rather not babysit each one; use per-ticket `/implement` when you want to review as you go.
 
 If a bug shows up later — say the limiter double-counts under concurrent requests — that's `diagnose-bug` territory, either invoked directly or triggered by describing the symptom; it insists on one reproducible failing case before it lets you theorize about the cause. If issues like this pile up faster than you can single-thread them, `/triage` moves each one through the same "is this actually ready to hand an agent" gate that `/write-tickets` applies to planned work, so both paths converge on the same shape of ticket.
@@ -225,6 +250,7 @@ If a bug shows up later — say the limiter double-counts under concurrent reque
 - **No repo yet, or a plan that isn't tied to code** → `/clarify-requirements` instead of `/domain-interview`: same interview, no `CONTEXT.md`/ADR paper trail.
 - **A question you need to *feel*, not reason about** (a state machine, a UI layout) → let `prototype` build a throwaway answer, then `/handoff` the finding back into the main interview.
 - **An effort too foggy to scope in one sitting** → `/decision-map` charts it as a map of decision tickets resolved one at a time, then hands off to `/write-spec` once the fog clears. Slower than the main flow — reserve it for genuine fog, not a well-scoped feature that's merely large.
+- **A real architecture question, or a new project's stack/design-system to pin down** → `/design-doc` researches it and writes a local `design.md` before `/write-spec`; skip it for features whose implementation decisions fit in the spec itself.
 - **A session went badly** → `/retro` afterward proposes fixes to your *environment* (a missing doc, a check that should've been automated), not the code.
 - **A message didn't land** → `/explain-again`, on the spot, re-pitches what was just said in plain English.
 
