@@ -1,6 +1,6 @@
 ---
 name: code-craft
-description: The senior-engineer judgment ladder - how much to build, which design principle applies, how to name and shape code, and how to reason about data and system design in general. Use when deciding whether to add an abstraction, a queue, a cache, or a dependency; when two designs are in play; when writing or refactoring any function; when picking names; when adding anything that runs outside the request cycle or touches a database; or when code feels tangled, fragile, or over-engineered.
+description: The senior-engineer judgment ladder - how much to build, which design principle applies, how to name and shape code, and how to design background jobs, queries, and migrations. Use when deciding whether to add an abstraction, a queue, a cache, or a dependency; when two designs are in play; when writing or refactoring any function; when picking names; when adding a job, worker, or scheduled task; when writing a query or migration, adding an index, or paginating; when an endpoint is slow or a job runs twice or fails silently; or when code feels tangled, fragile, or over-engineered.
 ---
 
 # Code Craft
@@ -9,7 +9,7 @@ The instinct a senior engineer applies without narrating it: a small, continuous
 
 Strategic is not the same as elaborate. A rule with no stated cost turns into cargo cult, which is over-engineering wearing a nicer shirt, and cargo cult is tactical programming with extra steps.
 
-Four rungs, top to bottom. Each links to a reference file in this skill's `reference/` folder — read only the one the situation actually calls for, not all four every time.
+Five rungs, top to bottom. Each links to a reference file in this skill's `reference/` folder, with the full mechanism-level detail — read only the one the situation actually calls for, not all five every time.
 
 For interface shape, seams, and SOLID, call the Skill tool with "module-design" — module-level, one rung more specific than anything here. For what to log, measure, and trace, call it with "observability".
 
@@ -31,12 +31,18 @@ Names state intent, not mechanism. Guard clauses over nesting. Nesting past thre
 
 Read `reference/naming-and-shape.md` when: writing or refactoring any function, picking a name, or a function has grown past a screen or nests deeply.
 
-## 4. Data and system design
+## 4. Async and background jobs
 
-The same judgment aimed at anything outside a single function call. Async is infrastructure and defaults to no. Anything that can run more than once (a retry, at-least-once delivery) must be idempotent — that's not optional, it's the normal operating condition. A query inside a loop (N+1) is the most common bug in this space. Measure before touching a schema or adding an index.
+Async is infrastructure and defaults to no. Anything that can run more than once (a retry, at-least-once delivery) must be idempotent by a named mechanism — that's not optional, it's the normal operating condition, not an edge case. Classify a failure before retrying it, and give retries a budget: a chain retrying at every layer multiplies, it doesn't add. A job and its side effect that must both happen or neither need one transaction, not two separate steps that can fail apart.
 
-Read `reference/data-and-systems.md` when: adding a job, worker, or anything outside the request cycle; writing a query or migration; deciding on retries, pagination, or transaction boundaries.
+Read `reference/async-and-jobs.md` when: adding a job, worker, or scheduled task; writing or changing a job handler; deciding whether work should be async at all; a job runs twice, gets stuck, or fails silently.
+
+## 5. Data and query design
+
+Measure before touching a schema or adding an index — the query plan, not intuition. A query inside a loop (N+1) is the most common bug in this space. Pagination that walks and discards rows degrades with depth; keyset pagination doesn't. Transactions are short and never held across a network call.
+
+Read `reference/data-and-queries.md` when: writing a query or migration; an endpoint or page is slow; adding an index; working with an ORM that loads related records; paginating; the database is the suspected bottleneck.
 
 ## Using this
 
-State which rung a decision actually sits on before applying its rule — "how much to build," "which principle," "how it's shaped," and "how the data/system layer holds up" are different questions, and answering the wrong one is how a naming argument turns into a debate about whether the feature should exist at all.
+State which rung a decision actually sits on before applying its rule — "how much to build," "which principle," "how it's shaped," "how a job survives failure," and "how the data layer holds up" are different questions, and answering the wrong one is how a naming argument turns into a debate about whether the feature should exist at all.
