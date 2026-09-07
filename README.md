@@ -46,7 +46,7 @@ cd ~/Documents/skilled
 ./install.sh /path/to/your-project
 ```
 
-That symlinks all 41 skills into `your-project/.claude/skills/` and `your-project/.agents/skills/`. Per-project, not global: a project you haven't pointed `install.sh` at never sees these skills, and running it against several projects is normal.
+That symlinks all 37 skills into `your-project/.claude/skills/` and `your-project/.agents/skills/`. Per-project, not global: a project you haven't pointed `install.sh` at never sees these skills, and running it against several projects is normal.
 
 ```bash
 ./install.sh /path/to/your-project --uninstall   # remove them from that project
@@ -116,12 +116,8 @@ Every skill here is a plain `SKILL.md` under the open [Agent Skills](https://age
 
 | Skill | |
 | :--- | :--- |
-| `simple-first` `[M]` | How much to build at all. The over-engineering guard. |
-| `design-principles` `[M]` | Cohesion and coupling, Law of Demeter, CQS, composition, fail fast. |
+| `code-craft` `[M]` | The senior-engineer judgment ladder: how much to build, cohesion/coupling/Demeter/CQS/composition/fail-fast, naming and function shape, and general data/system design (async, idempotency, retries, indexing, pagination, transactions). |
 | `module-design` `[M]` | Deep modules, seams, adapters, SOLID. |
-| `readable-code` `[M]` | Naming, function shape, control flow, comments. |
-| `background-jobs` `[M]` | Queues, idempotency, retries, dead-letter queues, the outbox pattern. |
-| `database-performance` `[M]` | Indexes, N+1, pagination, pooling, transactions. |
 | `observability` `[M]` | What to log, what to measure, what to trace. |
 | `verify-in-browser` `[M]` | Drive the app in a real browser to check a ticket's acceptance criteria, UI, and translations. |
 | `review-diff` `[M]` | Two-axis review of the diff: standards and spec. |
@@ -220,8 +216,8 @@ Splits the spec into tracer-bullet tickets with blocking edges declared. Small e
 > /implement RATE-143
 
   tdd: red → green → refactor at the agreed seam
-  simple-first: pushes back — a queue when an in-memory counter would do
-  database-performance: flags an unindexed lookup on the bucket table
+  code-craft: pushes back — a queue when an in-memory counter would do,
+    and flags an unindexed lookup on the bucket table
   verify-in-browser: skipped, no web UI in this ticket
   review-diff: standards clean, spec matches RATE-143
   → committed
@@ -229,7 +225,7 @@ Splits the spec into tracer-bullet tickets with blocking edges declared. Small e
 
 <p align="center"><img src="assets/step-implement.svg" alt="one ticket to committed via /implement, with tdd and the design skills firing, then review-diff" width="440"></p>
 
-Builds one ticket. It drives `tdd` at the seams you agreed in the interview (red → green → refactor), and while it writes code, model-invoked skills fire on their own without you calling them: `simple-first` pushes back if the implementation reaches for a queue when an in-memory counter would do; `database-performance` flags an unindexed lookup if the bucket store hits Postgres per request; `observability` asks what gets logged when a user gets throttled. If the ticket had touched a screen — say, a "requests remaining" indicator in the UI — `verify-in-browser` would drive it in a real browser first. Before it lets you commit, `review-diff` checks the diff against both your team's standards and the ticket's actual spec — not just "does it run," but "does it do what RATE-143 said."
+Builds one ticket. It drives `tdd` at the seams you agreed in the interview (red → green → refactor), and while it writes code, model-invoked skills fire on their own without you calling them: `code-craft` pushes back if the implementation reaches for a queue when an in-memory counter would do, and flags an unindexed lookup if the bucket store hits Postgres per request; `observability` asks what gets logged when a user gets throttled. If the ticket had touched a screen — say, a "requests remaining" indicator in the UI — `verify-in-browser` would drive it in a real browser first. Before it lets you commit, `review-diff` checks the diff against both your team's standards and the ticket's actual spec — not just "does it run," but "does it do what RATE-143 said."
 
 ```
 > /implement-spec

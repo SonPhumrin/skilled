@@ -7,7 +7,7 @@ description: Designing deep modules - small interfaces, clean seams, SOLID appli
 
 Design **deep modules**: a lot of behaviour behind a small interface, placed at a clean seam, testable through that interface. The aim is leverage for callers, locality for maintainers, testability for everyone.
 
-For the line-and-function level, call the Skill tool with "readable-code". For whether the module should exist, call it with "simple-first".
+For the line-and-function level, or whether the module should exist at all, call the Skill tool with "code-craft".
 
 ## Glossary
 
@@ -56,7 +56,7 @@ The five principles say the same things this glossary says, in older words. Both
 ## Principles
 
 - **Depth is a property of the interface, not the implementation.** A deep module can be internally composed of small swappable parts; they are simply not part of the interface. A module can have **internal seams** used by its own tests as well as the **external seam** at its interface.
-- **The deletion test** decides whether a module earns its keep. It is owned by `simple-first`; call the Skill tool with it when the question is whether the module should exist at all rather than what shape it takes.
+- **The deletion test** decides whether a module earns its keep. It is owned by `code-craft`; call the Skill tool with it when the question is whether the module should exist at all rather than what shape it takes.
 - **The interface is the test surface.** Callers and tests cross the same seam. Wanting to test *past* the interface means the module is the wrong shape.
 - **One adapter is a hypothetical seam. Two adapters is a real one.** Introduce a seam when something actually varies across it. A test double counts as a second adapter only when the seam is where the test genuinely needs to substitute, not when the double exists to work around a design you could have made direct.
 

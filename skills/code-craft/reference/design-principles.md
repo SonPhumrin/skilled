@@ -1,0 +1,19 @@
+# Design principles
+
+Principles you apply, not recite. Each one states the failure it prevents and the cost of following it too far.
+
+**High cohesion, low coupling** is the root the rest reduce to. Cohesion is how much the things inside one module belong together; coupling is how much one module must know about another. Group by what changes together, not by what looks alike — a `utils/` full of unrelated helpers is low cohesion wearing a tidy name. *Prevents*: the change that should touch one file and touches nine. *Cost*: pushed hard, produces many tiny modules that are individually cohesive and collectively unnavigable.
+
+**Law of Demeter.** Talk to your immediate collaborators, not to theirs. `order.customer.address.country.code` couples the caller to four types to read one string. Ask the nearest object for what you need: `order.shippingCountryCode()` hides the walk, and the walk changes in one place. *Cost*: applied literally, generates a delegating method for every field anyone might want. The rule bites on behaviour, not plain data — walking a parsed JSON response is fine; reach for it when the chain crosses module boundaries or the intermediates have behaviour of their own.
+
+**Command-query separation.** A function either changes state or answers a question, not both. `getNextId()` that increments a counter is a command wearing a query's name — split it or name it `reserveNextId()`. *Cost*: some operations genuinely are both (pop from a stack, `INSERT ... RETURNING`), and forcing them apart makes them non-atomic, which is worse. Keep those together and name them so the mutation is unmissable. A query safe to run twice by construction is also the line-level shape of idempotency (see `data-and-systems.md`).
+
+**Composition over inheritance.** Assemble behaviour from parts you hold rather than a parent you extend. An object that *has* a `Formatter` can swap it, test it, have two; one that *is* a `BaseFormatter` can do none of those. *Prevents*: being coupled to a base class's entire future. *Cost*: composition moves wiring to the construction site — when five parts always assemble the same way, that assembly is itself worth naming.
+
+**Make illegal states unrepresentable.** Encode constraints where the type system, schema, or constructor can enforce them. A union of `{status: "loading"} | {status: "loaded", data: T}` beats an optional `data` field plus a boolean, because "loaded but no data" stops existing. *Prevents*: whole classes of validation, and the one path that forgot to run it. *Cost*: expressive types can outrun the team reading them — stop where the type is harder to understand than the check it replaced.
+
+**Fail fast at the boundary.** Validate on entry, then trust the data inward. Parse and validate at every system boundary — HTTP handler, queue consumer, file reader, third-party response — and convert to a type that carries the guarantee; no defensive re-checking inside it. Re-validating in the core is a sign the boundary isn't doing its job. Fail loudly on programmer error (a broken invariant, an impossible branch); fail gracefully on user and network error, which are expected conditions, not bugs.
+
+**Explicit over implicit.** The reader should see what happens without knowing what's registered elsewhere. Dependencies passed in beat globals reached for; a function that says it takes a clock beats one that reads system time. Least astonishment is the same principle aimed at names — a `getUser` that sends an email has lied, and every reader after you pays for it. *Cost*: explicit wiring is more typing. Pay it; the reader outnumbers the writer.
+
+When two designs are in play, name which principle separates them and what it costs to follow. A design chosen because a principle said so, with no cost stated, hasn't been designed.

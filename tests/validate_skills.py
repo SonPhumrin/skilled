@@ -125,17 +125,22 @@ def check_no_relative_skill_links():
 
 def check_single_source_of_truth():
     """Design-altitude terms should each be owned by exactly one skill."""
-    design_skills = ["simple-first", "design-principles", "module-design", "readable-code"]
+    design_skills = ["code-craft", "module-design"]
     owned_terms = {
         "SOLID": "module-design",
-        "rule of three": "simple-first",
-        "Law of Demeter": "design-principles",
-        "command-query separation": "design-principles",
+        "rule of three": "code-craft",
+        "Law of Demeter": "code-craft",
+        "command-query separation": "code-craft",
     }
     for term, owner in owned_terms.items():
         hits = []
         for name in design_skills:
-            body = (SKILLS_DIR / name / "SKILL.md").read_text()
+            # A skill's content may be split across SKILL.md and any bundled
+            # reference/*.md files (progressive disclosure), so check the
+            # whole skill directory, not just the entry-point file.
+            body = "\n".join(
+                f.read_text() for f in (SKILLS_DIR / name).rglob("*.md")
+            )
             # A one-line pointer ("call the Skill tool with ...") that merely
             # names the term to redirect elsewhere is not a duplication; only
             # flag a term explained at length (3+ hits) outside its owner.

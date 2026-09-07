@@ -40,7 +40,7 @@ Metrics tell you *that* something is wrong and how widely. Logs tell you *what*.
 
 **Per resource**: utilisation, saturation, and errors. Saturation, meaning the queue or wait depth, is the leading indicator; utilisation looks fine right up until it does not.
 
-**For anything async**, from `background-jobs`: queue depth, oldest-job age, DLQ depth, per-type failure rate. Oldest-job age catches the stalled worker that depth alone misses.
+**For anything async** (see `code-craft` for the design of the job itself): queue depth, oldest-job age, DLQ depth, per-type failure rate. Oldest-job age catches the stalled worker that depth alone misses.
 
 **Watch cardinality.** A label carrying a user ID, a request ID, or a URL with an ID in it multiplies your time series into a bill and an outage. Labels take bounded values: endpoint template, status class, job type, region.
 

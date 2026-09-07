@@ -14,11 +14,11 @@ inline the material into another skill.
 
 | Prompt | Should reach |
 | :--- | :--- |
-| "add a background job to email receipts" | `background-jobs` |
-| "this endpoint is slow" | `database-performance` |
-| "add a plugin system for report formats" | `simple-first` (pushes back) |
-| "clean up this function" | `readable-code` |
-| "is this the right abstraction?" | `design-principles` + `module-design` |
+| "add a background job to email receipts" | `code-craft` |
+| "this endpoint is slow" | `code-craft` |
+| "add a plugin system for report formats" | `code-craft` (pushes back) |
+| "clean up this function" | `code-craft` |
+| "is this the right abstraction?" | `code-craft` + `module-design` |
 | "how would I know if this broke in prod?" | `observability` |
 | "check this in the browser, does the new screen work?" | `verify-in-browser` |
 | "the migration adds a NOT NULL column, is the backfill safe?" (no UI) | *not* `verify-in-browser` |

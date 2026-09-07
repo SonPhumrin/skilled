@@ -6,7 +6,7 @@ disable-model-invocation: true
 
 # Skilled Update
 
-26 of the 38 skills in this repo were ported from [mattpocock/skills](https://github.com/mattpocock/skills), then renamed and, in several cases, rewritten. Each carries its provenance in frontmatter:
+26 of the 37 skills in this repo were ported from [mattpocock/skills](https://github.com/mattpocock/skills), then renamed and, in several cases, rewritten. Each carries its provenance in frontmatter:
 
 ```yaml
 metadata:
@@ -18,7 +18,7 @@ metadata:
 
 This skill does not silently overwrite anything. Upstream's content is not ours to reapply blind: names differ, cross-references were retargeted, and several skills were rewritten rather than copied. What this does is tell you **what changed upstream since we forked**, and leave the decision of whether and how to fold it in to whoever invokes it.
 
-The 12 skills with no `metadata.upstream` field (`simple-first`, `design-principles`, `module-design`, `readable-code`, `background-jobs`, `database-performance`, `observability`, `implement`, `requirements-interview`, `clarify-requirements`, `skilled`, `skilled-setup`) are either wholly original or rewritten heavily enough that a diff against upstream would be noise, not signal. Skip them.
+The 11 skills with no `metadata.upstream` field (`code-craft`, `module-design`, `observability`, `implement`, `requirements-interview`, `clarify-requirements`, `skilled`, `skilled-setup`, `skilled-update`, `design-doc`, `verify-in-browser`) are either wholly original or rewritten heavily enough that a diff against upstream would be noise, not signal. Skip them.
 
 ## Process
 

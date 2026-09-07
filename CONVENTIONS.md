@@ -58,10 +58,8 @@ The design skills are split by altitude so no rule lives twice:
 
 | Altitude | Skill |
 | :--- | :--- |
-| How much to build at all | `simple-first` |
-| Cross-cutting laws | `design-principles` |
+| How much to build, cross-cutting laws, naming/shape, general data/system design | `code-craft` |
 | Module interfaces and seams | `module-design` |
-| Lines and functions | `readable-code` |
-| Queues, DB, instrumentation | `background-jobs`, `database-performance`, `observability` |
+| Instrumentation | `observability` |
 
-SOLID lives in `module-design` because it is module-level. KISS and YAGNI live in `simple-first` because they are scope questions. Neither is restated in `design-principles`.
+`code-craft` is itself split by altitude internally — see its `reference/` folder — so no rule lives twice there either. SOLID lives in `module-design` because it is module-level; KISS, YAGNI, and everything else in `code-craft` stays out of `module-design`.

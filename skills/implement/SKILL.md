@@ -22,7 +22,7 @@ If anything in the spec is still ambiguous at this point, call the Skill tool wi
 
 Work in vertical slices, one behaviour at a time. At each agreed seam, call the Skill tool with "tdd" and run the red-green loop for that slice.
 
-The design skills are model-invoked, so they will fire on their own as the work warrants. Reach for one deliberately when you are about to commit to a shape: "simple-first" before adding infrastructure or an abstraction, "module-design" when defining an interface, "background-jobs" for anything running outside the request cycle, "database-performance" for a new query or migration.
+The design skills are model-invoked, so they will fire on their own as the work warrants. Reach for one deliberately when you are about to commit to a shape: "code-craft" before adding infrastructure or an abstraction, for anything running outside the request cycle, or for a new query or migration; "module-design" when defining an interface.
 
 Run typechecking after each slice and the relevant test file with it. Run the full suite once, at the end.
 

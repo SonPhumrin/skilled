@@ -65,7 +65,7 @@
 <g class="panel"><rect x="350.0" y="130" width="260" height="250" rx="12" ry="12"/></g>
 <text x="364.0" y="152" class="panel-title">fire on their own</text>
 <g class="node node-chip"><rect x="365.0" y="165.0" width="230" height="40" rx="8" ry="8"/><text x="480.0" y="189.0" text-anchor="middle" font-size="11.5">tdd (red/green/refactor)</text></g>
-<g class="node node-chip"><rect x="365.0" y="220.0" width="230" height="40" rx="8" ry="8"/><text x="480.0" y="244.0" text-anchor="middle" font-size="11.5">simple-first, module-design, ...</text></g>
+<g class="node node-chip"><rect x="365.0" y="220.0" width="230" height="40" rx="8" ry="8"/><text x="480.0" y="244.0" text-anchor="middle" font-size="11.5">code-craft, module-design, ...</text></g>
 <g class="node node-chip"><rect x="365.0" y="275.0" width="230" height="40" rx="8" ry="8"/><text x="480.0" y="299.0" text-anchor="middle" font-size="11.5">verify-in-browser (if web UI)</text></g>
 <path d="M320.0,195 L350.0,170" class="edge-dash" marker-end="url(#arrow)"/>
 </svg>

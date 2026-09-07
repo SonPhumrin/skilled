@@ -48,15 +48,11 @@ These are model-invoked, so they fire on their own. Named here so you know what 
 
 **Design, by altitude:**
 
-- `simple-first` - how much to build at all. The over-engineering guard.
-- `design-principles` - cohesion and coupling, Law of Demeter, command-query separation, composition, illegal states, fail fast.
+- `code-craft` - the senior-engineer judgment ladder: how much to build, which design principle applies, naming and function shape, and general data/system design (async, idempotency, retries, indexing, pagination, transactions).
 - `module-design` - interfaces, seams, adapters, SOLID.
-- `readable-code` - naming, function shape, control flow, comments.
 
 **Domain-specific:**
 
-- `background-jobs` - queues, idempotency, retries, dead-letter queues, the outbox pattern.
-- `database-performance` - indexes, N+1, pagination, pooling, transactions.
 - `observability` - what to log, measure, and trace.
 
 **Process:**
