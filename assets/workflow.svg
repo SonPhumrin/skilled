@@ -120,10 +120,10 @@
 </g>
 <path d="M580.0,200 C640.0,200 575.0,300 635.0,300" class="edge" marker-end="url(#arrow)"/>
 <text x="650.0" y="245.0" text-anchor="middle" class="edge-label">big enough to need one</text>
-<path d="M750.0,328.0 C750.0,360.0 600.0,370.0 520.0,380.0" class="edge" marker-end="url(#arrow)"/>
-<text x="680.0" y="356.0" text-anchor="middle" class="edge-label">docs/design/*.md</text>
-<path d="M750.0,432.0 C750.0,390.0 600.0,400.0 520.0,420.0" class="edge" marker-end="url(#arrow)"/>
-<text x="680.0" y="404.0" text-anchor="middle" class="edge-label">once the fog clears</text>
+<path d="M635.0,300.0 C575.0,300.0 520.0,335.0 520.0,380.0" class="edge" marker-end="url(#arrow)"/>
+<text x="545.0" y="352.0" text-anchor="middle" class="edge-label">docs/design/*.md</text>
+<path d="M635.0,460.0 C575.0,460.0 520.0,430.0 520.0,420.0" class="edge" marker-end="url(#arrow)"/>
+<text x="584.0" y="448.0" text-anchor="middle" class="edge-label">once the fog clears</text>
 <g class="panel"><rect x="640" y="720" width="300" height="210" rx="14" ry="14"/></g>
 <text x="656" y="746" class="panel-title">design skills</text>
 <text x="656" y="764" class="panel-title" style="font-weight:400">fire on their own during /implement</text>
