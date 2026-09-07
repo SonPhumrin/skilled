@@ -2,11 +2,6 @@
 name: retro
 description: Review a finished session and propose improvements to the agent environment: navigation, automated checks, coding standards, tooling.
 disable-model-invocation: true
-metadata:
-  upstream:
-    repo: https://github.com/mattpocock/skills
-    path: skills/in-progress/retro/SKILL.md
-    commit: 3cca18b368ae95cdbdebbff572ccafa662551015
 ---
 
 The user has asked for a **retrospective**. You are suggesting improvements to the coding agent's **environment** to improve future runs.

@@ -1,11 +1,6 @@
 ---
 name: resolve-merge-conflicts
 description: "Use when you need to resolve an in-progress git merge/rebase conflict."
-metadata:
-  upstream:
-    repo: https://github.com/mattpocock/skills
-    path: skills/engineering/resolving-merge-conflicts/SKILL.md
-    commit: 3cca18b368ae95cdbdebbff572ccafa662551015
 ---
 
 1. **See the current state** of the merge/rebase. Check git history, and the conflicting files.

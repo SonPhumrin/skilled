@@ -6,19 +6,11 @@ disable-model-invocation: true
 
 # Skilled Update
 
-26 of the 37 skills in this repo were ported from [mattpocock/skills](https://github.com/mattpocock/skills), then renamed and, in several cases, rewritten. Each carries its provenance in frontmatter:
-
-```yaml
-metadata:
-  upstream:
-    repo: https://github.com/mattpocock/skills
-    path: skills/engineering/tdd/SKILL.md
-    commit: 3cca18b368ae95cdbdebbff572ccafa662551015
-```
+26 of the 37 skills in this repo were ported from [mattpocock/skills](https://github.com/mattpocock/skills), then renamed and, in several cases, rewritten. Their provenance lives in this skill's own [upstream-map.md](upstream-map.md), not in each skill's frontmatter — that file is the only thing that reads it, so keeping it there costs zero tokens on every other skill's fire.
 
 This skill does not silently overwrite anything. Upstream's content is not ours to reapply blind: names differ, cross-references were retargeted, and several skills were rewritten rather than copied. What this does is tell you **what changed upstream since we forked**, and leave the decision of whether and how to fold it in to whoever invokes it.
 
-The 11 skills with no `metadata.upstream` field (`code-craft`, `module-design`, `observability`, `implement`, `requirements-interview`, `clarify-requirements`, `skilled`, `skilled-setup`, `skilled-update`, `design-doc`, `verify-in-browser`) are either wholly original or rewritten heavily enough that a diff against upstream would be noise, not signal. Skip them.
+The 11 skills with no row in `upstream-map.md` are either wholly original or rewritten heavily enough that a diff against upstream would be noise, not signal. Skip them; the map file itself names them.
 
 ## Process
 
@@ -36,10 +28,10 @@ git clone https://github.com/mattpocock/skills /tmp/skilled-upstream-check
 
 ### 2. For each tracked skill, check for drift
 
-Read every `skills/*/SKILL.md` in this repo, collect the `metadata.upstream` block where present, and for each one:
+Read [upstream-map.md](upstream-map.md) and for each row (skill name, upstream path, forked-at commit):
 
 ```bash
-git -C /tmp/skilled-upstream-check log --oneline <recorded-commit>..HEAD -- <path>
+git -C /tmp/skilled-upstream-check log --oneline <forked-at-commit>..HEAD -- <path>
 ```
 
 Empty output means upstream hasn't touched that file since the recorded commit: up to date, nothing to do.
@@ -47,7 +39,7 @@ Empty output means upstream hasn't touched that file since the recorded commit: 
 Non-empty output means it changed. Get the diff:
 
 ```bash
-git -C /tmp/skilled-upstream-check diff <recorded-commit> HEAD -- <path>
+git -C /tmp/skilled-upstream-check diff <forked-at-commit> HEAD -- <path>
 ```
 
 ### 3. Report, don't apply
@@ -60,14 +52,14 @@ For every skill with drift, show:
 
 Group the report by how the skill was derived, since that determines how hard folding it in will be:
 
-- **Renamed only** (frontmatter `name` and internal cross-references changed, body otherwise intact): the diff usually applies close to as-is. Show it, and if the user agrees, apply it and update `commit` to upstream's new HEAD sha.
+- **Renamed only** (frontmatter `name` and internal cross-references changed, body otherwise intact): the diff usually applies close to as-is. Show it, and if the user agrees, apply it and update the commit in `upstream-map.md` to upstream's new HEAD sha.
 - **Renamed and edited** (we added or changed sections beyond the rename, e.g. `tdd` gained a `CONTEXT.md`-reading step, `module-design` gained the SOLID section): a raw patch will conflict with our edits. Say so explicitly, quote the relevant hunk, and let whoever invoked this decide how to merge it by hand.
 
 Never edit a `SKILL.md` as part of this step without the change being confirmed. Reporting is the deliverable; applying is a separate, explicit choice.
 
 ### 4. On confirmed apply
 
-Update only the `commit:` field in that skill's `metadata.upstream` block to the new upstream HEAD sha. Do not touch `path` or `repo`. Re-run `tests/validate_skills.py` afterward.
+Update only that row's commit in `upstream-map.md` to the new upstream HEAD sha. Do not touch the path. Re-run `tests/validate_skills.py` afterward.
 
 ### 5. Clean up
 
@@ -75,4 +67,4 @@ Remove `/tmp/skilled-upstream-check` when done.
 
 ## Adding provenance to a new port
 
-When a future skill is ported from upstream by copying its file (not rewriting it), add the same `metadata.upstream` block by hand, with `commit` set to upstream's HEAD sha at the moment of copying. A skill written fresh, even if upstream-inspired, gets no block: tracking would flag it as 100% drifted on every run for no useful signal.
+When a future skill is ported from upstream by copying its file (not rewriting it), add a row to `upstream-map.md` by hand: skill name, upstream path, and upstream's HEAD sha at the moment of copying. A skill written fresh, even if upstream-inspired, gets no row: tracking would flag it as 100% drifted on every run for no useful signal.

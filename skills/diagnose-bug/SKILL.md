@@ -1,11 +1,6 @@
 ---
 name: diagnose-bug
 description: Diagnosis loop for hard bugs and performance regressions. Use when the user says "diagnose"/"debug this", or reports something broken/throwing/failing/slow.
-metadata:
-  upstream:
-    repo: https://github.com/mattpocock/skills
-    path: skills/engineering/diagnosing-bugs/SKILL.md
-    commit: 3cca18b368ae95cdbdebbff572ccafa662551015
 ---
 
 # Diagnosing Bugs

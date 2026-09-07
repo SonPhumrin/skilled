@@ -2,11 +2,6 @@
 name: enforce-module-boundaries
 description: Wire dependency-cruiser into a TypeScript repo so each package is a deep module, reachable only through its entry-point files.
 disable-model-invocation: true
-metadata:
-  upstream:
-    repo: https://github.com/mattpocock/skills
-    path: skills/in-progress/setup-ts-deep-modules/SKILL.md
-    commit: 3cca18b368ae95cdbdebbff572ccafa662551015
 ---
 
 # Setup TS Deep Modules

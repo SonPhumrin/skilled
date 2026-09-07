@@ -3,11 +3,6 @@ name: handoff-to-agent
 description: Hand the current conversation off to a fresh background agent that picks up the work immediately.
 argument-hint: "What will the next session be used for?"
 disable-model-invocation: true
-metadata:
-  upstream:
-    repo: https://github.com/mattpocock/skills
-    path: skills/in-progress/claude-handoff/SKILL.md
-    commit: 3cca18b368ae95cdbdebbff572ccafa662551015
 ---
 
 Write a handoff summary of the current conversation so a fresh agent can continue the work. Instead of saving it, launch a background agent seeded with the summary as its prompt: `claude --bg --name "<descriptive name>" "<handoff summary>"`. It starts in the current working directory and returns immediately; the user manages it with `claude agents`.

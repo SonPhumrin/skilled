@@ -2,11 +2,6 @@
 name: architecture-review
 description: Scan a codebase for deepening opportunities, present them as a visual HTML report, then interview through whichever one you pick.
 disable-model-invocation: true
-metadata:
-  upstream:
-    repo: https://github.com/mattpocock/skills
-    path: skills/engineering/improve-codebase-architecture/SKILL.md
-    commit: 3cca18b368ae95cdbdebbff572ccafa662551015
 ---
 
 # Improve Codebase Architecture

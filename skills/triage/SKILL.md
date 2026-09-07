@@ -2,11 +2,6 @@
 name: triage
 description: Move issues and external PRs through a state machine of triage roles, categorise, verify, interview if needed, and write agent-ready briefs.
 disable-model-invocation: true
-metadata:
-  upstream:
-    repo: https://github.com/mattpocock/skills
-    path: skills/engineering/triage/SKILL.md
-    commit: 3cca18b368ae95cdbdebbff572ccafa662551015
 ---
 
 # Triage

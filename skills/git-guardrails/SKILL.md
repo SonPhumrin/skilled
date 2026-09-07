@@ -2,11 +2,6 @@
 name: git-guardrails
 description: Install hooks that block destructive git commands before they run.
 disable-model-invocation: true
-metadata:
-  upstream:
-    repo: https://github.com/mattpocock/skills
-    path: skills/misc/git-guardrails-claude-code/SKILL.md
-    commit: 3cca18b368ae95cdbdebbff572ccafa662551015
 ---
 
 # Setup Git Guardrails

@@ -2,11 +2,6 @@
 name: implement-spec
 description: Implement a whole spec on one branch: works the tickets as a task graph, running implementer subagents across the ready frontier, and lands one PR.
 disable-model-invocation: true
-metadata:
-  upstream:
-    repo: https://github.com/mattpocock/skills
-    path: skills/in-progress/implement-spec/SKILL.md
-    commit: 3cca18b368ae95cdbdebbff572ccafa662551015
 ---
 
 You have been provided a spec. This spec should have tickets associated with it, describing how to implement the spec.

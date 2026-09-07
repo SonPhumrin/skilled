@@ -48,9 +48,9 @@ Stay inside the six-field Agent Skills spec wherever possible, so these skills a
 
 ## Upstream provenance
 
-Some of these skills are byte-derived ports from an external source (renamed, some also edited). Each such skill carries a `metadata.upstream` block recording the source repo, path, and commit it was forked from — required so the source's license terms stay attached to the derived file. Run `/skilled-update` to check whether upstream has moved since. A skill written fresh, even one inspired by an upstream skill's shape, carries no such block: tracking a rewrite against its inspiration would always show total drift, which is noise, not signal.
+Some of these skills are byte-derived ports from an external source (renamed, some also edited). Their source repo, path, and forked-at commit are recorded in `skills/skilled-update/upstream-map.md`, not in each skill's own frontmatter — that file is the only thing that reads it, so no other skill's fire pays for it. License attribution for the source repo lives at the repo root in `LICENSE`, which satisfies the source's terms independent of this map; the map exists purely so `/skilled-update` knows what to diff. A skill written fresh, even one inspired by an upstream skill's shape, gets no row: tracking a rewrite against its inspiration would always show total drift, which is noise, not signal.
 
-When you copy (not rewrite) a skill from an external source in the future, add the same block by hand, and confirm its license permits redistribution before doing so.
+When you copy (not rewrite) a skill from an external source in the future, add a row to `upstream-map.md` by hand, and confirm its license permits redistribution before doing so.
 
 ## Altitude
 

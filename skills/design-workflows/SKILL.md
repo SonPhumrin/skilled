@@ -3,11 +3,6 @@ name: design-workflows
 description: Design specs for the recurring workflows you want to automate, in this workspace.
 disable-model-invocation: true
 argument-hint: "A workflow to design, or nothing to go find one"
-metadata:
-  upstream:
-    repo: https://github.com/mattpocock/skills
-    path: skills/in-progress/loop-me/SKILL.md
-    commit: 3cca18b368ae95cdbdebbff572ccafa662551015
 ---
 
 Run a stateful `requirements-interview` session whose only output is **workflow** specs. Use the interview discipline (relentless, a round of questions at a time, a recommended answer attached to each) aimed at the vocabulary and goal below. Create, edit, and delete specs as the interview resolves things.

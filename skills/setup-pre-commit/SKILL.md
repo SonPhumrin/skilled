@@ -2,11 +2,6 @@
 name: setup-pre-commit
 description: Scaffold pre-commit hooks: formatting, type checking, and tests before each commit.
 disable-model-invocation: true
-metadata:
-  upstream:
-    repo: https://github.com/mattpocock/skills
-    path: skills/misc/setup-pre-commit/SKILL.md
-    commit: 3cca18b368ae95cdbdebbff572ccafa662551015
 ---
 
 # Setup Pre-Commit Hooks
