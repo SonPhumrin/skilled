@@ -64,6 +64,14 @@ Per-project, not global: a project you haven't pointed `install.sh` at never see
 
 Both are idempotent — safe to re-run after editing a skill, or after `git pull` picks up an update.
 
+By default, every skill is a **symlink** back into this repo — `git pull` here updates every project instantly, but only on the machine that ran the install: a coworker cloning your project gets a dead symlink, since it points at an absolute path on your disk. If the project is shared, add `--vendor` to copy real files in instead:
+
+```bash
+./install.sh /path/to/your-project --vendor
+```
+
+Vendored skills are self-contained and `git add`-able — anyone who clones the project gets working skills with no separate checkout of this repo. The trade-off is the one every vendored dependency has: it goes stale. Re-run `--vendor` after this repo updates to resync; `validate_skills.py --project` (below) flags a vendored copy that's drifted from the source.
+
 Verify the install landed correctly:
 
 ```bash

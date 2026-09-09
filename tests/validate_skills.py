@@ -153,13 +153,39 @@ def check_single_source_of_truth():
             warn(f"'{term}' (owned by {owner}) is explained at length in: {others}")
 
 
+def _check_skill_entry(target, name, install_kind):
+    """One skill's entry under a .claude/skills or .agents/skills target
+    directory. Accepts either install.sh's two modes: a symlink resolving
+    back into this repo (default), or a real directory whose SKILL.md
+    frontmatter name matches and whose content is identical to the source
+    (--vendor). A vendored copy that exists but differs from the source is
+    flagged separately from a missing one, since that's staleness -- re-run
+    `--vendor`, not `install.sh` from scratch."""
+    entry = target / name
+    if not entry.exists():
+        warn(f"{target}/{name} missing (run ./install.sh {install_kind})")
+        return
+    if entry.is_symlink():
+        if entry.resolve() != (SKILLS_DIR / name).resolve():
+            fail(f"{target}/{name} points somewhere else: {entry.resolve()}")
+        return
+    # Not a symlink: only valid if it's a --vendor copy of this exact skill.
+    skill_md = entry / "SKILL.md"
+    source_md = SKILLS_DIR / name / "SKILL.md"
+    if not skill_md.is_file() or f"name: {name}" not in skill_md.read_text():
+        warn(f"{target}/{name} exists but is neither a symlink to this repo "
+             f"nor a vendored copy of it")
+    elif skill_md.read_text() != source_md.read_text():
+        warn(f"{target}/{name} is a vendored copy that's out of date "
+             f"(re-run ./install.sh {install_kind} --vendor)")
+
+
 def check_install_state(project_path):
-    """If a project path was given, its .claude/skills and .agents/skills
-    symlinks (written by install.sh) should resolve back into this repo, and
-    its .agents/skills.json should register this repo's skills/ dir for
-    Antigravity's documented external-registration mechanism (its default
-    .agents/skills/ scan has been observed to miss symlinked folders; see
-    install.sh's header comment). With no project path, this is a no-op:
+    """If a project path was given, check its install.sh output in whichever
+    mode it was installed: symlink (default, resolves back into this repo)
+    or --vendor (real copies, checked for staleness against the source).
+    Also checks .agents/skills.json and opencode.json register a path that
+    matches one of the two modes. With no project path, this is a no-op:
     install is per-project now, and there is no single global location to
     assume."""
     if project_path is None:
@@ -171,14 +197,9 @@ def check_install_state(project_path):
             warn(f"{target} does not exist (run ./install.sh {project_path})")
             continue
         for name in skill_dirs:
-            link = target / name
-            if not link.exists():
-                warn(f"{target}/{name} missing (run ./install.sh {project_path})")
-            elif not link.is_symlink():
-                warn(f"{target}/{name} exists but is not a symlink")
-            elif link.resolve() != (SKILLS_DIR / name).resolve():
-                fail(f"{target}/{name} points somewhere else: {link.resolve()}")
+            _check_skill_entry(target, name, str(project_path))
 
+    valid_antigravity_paths = {str(SKILLS_DIR), ".agents/skills"}
     skills_json = project_path / ".agents" / "skills.json"
     if not skills_json.is_file():
         warn(f"{skills_json} does not exist (run ./install.sh {project_path}); "
@@ -190,14 +211,15 @@ def check_install_state(project_path):
             fail(f"{skills_json} is not valid JSON: {e}")
         else:
             paths = {e.get("path") for e in data.get("entries", [])}
-            if str(SKILLS_DIR) not in paths:
-                warn(f"{skills_json} has no entry for {SKILLS_DIR} "
+            if not (paths & valid_antigravity_paths):
+                warn(f"{skills_json} has no entry for this repo "
                      f"(run ./install.sh {project_path})")
 
     # OpenCode's external-skill auto-load only scans ~/.claude/ and
     # ~/.agents/ (global, per its own docs) -- never a project's
     # .claude/skills or .agents/skills. Project-scoped skills need the
     # "skills": {"paths": [...]} entry in opencode.json instead.
+    valid_opencode_paths = {str(SKILLS_DIR), ".claude/skills", ".agents/skills"}
     oc_json = project_path / "opencode.json"
     oc_jsonc = project_path / "opencode.jsonc"
     oc_nested = project_path / ".opencode" / "opencode.json"
@@ -217,8 +239,8 @@ def check_install_state(project_path):
                 fail(f"{oc_target} is not valid JSON: {e}")
             else:
                 paths = set(data.get("skills", {}).get("paths", []))
-                if str(SKILLS_DIR) not in paths:
-                    warn(f"{oc_target} has no skills.paths entry for {SKILLS_DIR} "
+                if not (paths & valid_opencode_paths):
+                    warn(f"{oc_target} has no skills.paths entry for this repo "
                          f"(run ./install.sh {project_path})")
 
 

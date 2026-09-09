@@ -4,13 +4,29 @@
 # touches a global (home-directory) config, on any harness.
 #
 # Usage:
-#   ./install.sh /path/to/project [--claude] [--opencode] [--antigravity]
+#   ./install.sh /path/to/project [--claude] [--opencode] [--antigravity] [--vendor]
 #   ./install.sh /path/to/project [flags...] --uninstall
 #
 # No harness flag = all three (unchanged default). Pass one or more to
 # install only those -- e.g. `--claude` alone if a project never runs
-# OpenCode or Antigravity, so it doesn't pick up opencode.json or
-# .agents/skills.json for tools it doesn't use.
+# OpenCode or Antigravity.
+#
+# Two distribution modes:
+#
+#   Symlink (default). Each skill is a symlink back into THIS repo, at its
+#   absolute path on THIS machine. `git pull` here updates every project
+#   it's installed into instantly -- but it only works on the machine that
+#   ran the install: a coworker cloning the project gets a dead symlink and
+#   a JSON path pointing at a directory that doesn't exist on their disk.
+#   Right model for a solo dev's own machine across several personal repos.
+#
+#   --vendor. Copies real files into the project instead of symlinking, and
+#   uses paths relative to the project instead of this repo's absolute
+#   path. Self-contained and git-add-able: a coworker who clones the project
+#   gets working skills with no separate checkout of this repo. The
+#   trade-off is the one every vendored dependency has -- it goes stale.
+#   Re-run `--vendor` after this repo updates to resync; nothing here
+#   detects staleness or updates itself automatically.
 #
 # What each flag writes, and why:
 #   --claude       <project>/.claude/skills   - Claude Code's native project
@@ -27,7 +43,10 @@
 #                                                docs recommend this file for
 #                                                skills outside its default
 #                                                discovery locations. Belt and
-#                                                suspenders, not a swap.
+#                                                suspenders, not a swap --
+#                                                written even in --vendor
+#                                                mode, just with a
+#                                                project-relative path.
 #   --opencode     <project>/opencode.json    - Required, not optional: its
 #                                                own embedded docs say
 #                                                external-skill auto-load only
@@ -38,7 +57,15 @@
 #                                                "skills": {"paths": [...]}
 #                                                entry this writes is
 #                                                OpenCode's own project-scoped
-#                                                mechanism.
+#                                                mechanism. In --vendor mode
+#                                                this points at whichever
+#                                                directory actually got
+#                                                vendored (.claude/skills if
+#                                                --claude ran, else
+#                                                .agents/skills, else
+#                                                .claude/skills is vendored
+#                                                anyway just to give OpenCode
+#                                                something to point at).
 set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -48,6 +75,7 @@ MODE="install"
 DO_CLAUDE=0
 DO_OPENCODE=0
 DO_ANTIGRAVITY=0
+VENDOR=0
 PROJECT_PATH=""
 
 for arg in "$@"; do
@@ -56,6 +84,7 @@ for arg in "$@"; do
     --claude) DO_CLAUDE=1 ;;
     --opencode) DO_OPENCODE=1 ;;
     --antigravity) DO_ANTIGRAVITY=1 ;;
+    --vendor) VENDOR=1 ;;
     --*) echo "error: unknown flag $arg" >&2; exit 1 ;;
     *)
       if [ -n "$PROJECT_PATH" ]; then
@@ -68,7 +97,7 @@ for arg in "$@"; do
 done
 
 if [ -z "$PROJECT_PATH" ]; then
-  echo "Usage: $0 /path/to/project [--claude] [--opencode] [--antigravity] [--uninstall]" >&2
+  echo "Usage: $0 /path/to/project [--claude] [--opencode] [--antigravity] [--vendor] [--uninstall]" >&2
   exit 1
 fi
 
@@ -85,6 +114,13 @@ if [ ! -d "$PROJECT_PATH" ]; then
 fi
 PROJECT_PATH="$(cd "$PROJECT_PATH" && pwd)"
 
+# In --vendor mode, OpenCode needs an actual directory of copied skills to
+# point at even if neither --claude nor --antigravity was requested.
+if [ "$VENDOR" -eq 1 ] && [ "$DO_OPENCODE" -eq 1 ] && [ "$DO_CLAUDE" -eq 0 ] && [ "$DO_ANTIGRAVITY" -eq 0 ]; then
+  DO_CLAUDE=1
+  echo "note: --vendor --opencode alone needs a vendored copy to point at; vendoring into .claude/skills too."
+fi
+
 link_all() {
   local target_dir="$1"
   mkdir -p "$target_dir"
@@ -96,7 +132,7 @@ link_all() {
     ln -sfn "$target" "$target_dir/$name"
     linked=$((linked + 1))
   done
-  echo "  $target_dir  ($linked skills)"
+  echo "  $target_dir  ($linked skills, symlinked)"
 }
 
 unlink_all() {
@@ -116,22 +152,72 @@ unlink_all() {
   echo "  $target_dir  (removed $removed)"
 }
 
-# Antigravity-specific: register $SKILLS_DIR in <project>/.agents/skills.json
-# via its documented { "entries": [{ "path": ... }] } schema. Merges into an
-# existing file rather than overwriting it, so a project's own entries (or
-# ones from other tools) survive.
+# --vendor equivalent of link_all: copies each skill directory in place of
+# symlinking it. Only touches subdirectories whose name matches a skill in
+# this repo, and only overwrites ones that already look like a vendored
+# copy of that skill (a real directory, not a symlink, with a SKILL.md
+# whose name: frontmatter matches) -- so it never clobbers something a
+# project put there itself under a colliding name.
+copy_all() {
+  local target_dir="$1"
+  mkdir -p "$target_dir"
+  local copied=0 skipped=0
+  for skill_path in "$SKILLS_DIR"/*/; do
+    local name target dest
+    name="$(basename "$skill_path")"
+    target="${skill_path%/}"
+    dest="$target_dir/$name"
+    if [ -e "$dest" ] && { [ -L "$dest" ] || ! grep -q "^name: $name$" "$dest/SKILL.md" 2>/dev/null; }; then
+      skipped=$((skipped + 1))
+      continue
+    fi
+    rm -rf "$dest"
+    cp -R "$target" "$dest"
+    copied=$((copied + 1))
+  done
+  if [ "$skipped" -gt 0 ]; then
+    echo "  $target_dir  ($copied skills copied, $skipped skipped -- not a vendored copy of that skill)"
+  else
+    echo "  $target_dir  ($copied skills copied)"
+  fi
+}
+
+remove_vendored() {
+  local target_dir="$1"
+  [ -d "$target_dir" ] || return 0
+  local removed=0
+  for skill_path in "$SKILLS_DIR"/*/; do
+    local name dest
+    name="$(basename "$skill_path")"
+    dest="$target_dir/$name"
+    if [ -d "$dest" ] && [ ! -L "$dest" ] && grep -q "^name: $name$" "$dest/SKILL.md" 2>/dev/null; then
+      rm -rf "$dest"
+      removed=$((removed + 1))
+    fi
+  done
+  echo "  $target_dir  (removed $removed)"
+}
+
+# Antigravity-specific: register a path in <project>/.agents/skills.json via
+# its documented { "entries": [{ "path": ... }] } schema. $2 is what to
+# register -- $SKILLS_DIR (absolute, symlink mode) or a project-relative
+# path (--vendor mode, e.g. ".agents/skills"; Antigravity's own docs say a
+# path not starting with / or ~/ resolves from the repo root). Merges into
+# an existing file rather than overwriting it, so a project's own entries
+# (or ones from other tools) survive.
 write_skills_json() {
   local agents_dir="$1"
+  local register_path="$2"
   local json_file="$agents_dir/skills.json"
   if ! command -v python3 >/dev/null 2>&1; then
     echo "  warning: python3 not found, skipped $json_file (Antigravity needs it to see these skills)" >&2
     return 0
   fi
   mkdir -p "$agents_dir"
-  python3 - "$json_file" "$SKILLS_DIR" <<'PYEOF'
+  python3 - "$json_file" "$register_path" <<'PYEOF'
 import json, os, sys
 
-json_file, skills_dir = sys.argv[1], sys.argv[2]
+json_file, register_path = sys.argv[1], sys.argv[2]
 data = {}
 if os.path.exists(json_file):
     content = open(json_file).read().strip()
@@ -139,31 +225,32 @@ if os.path.exists(json_file):
         data = json.loads(content)
 
 entries = data.setdefault("entries", [])
-if not any(e.get("path") == skills_dir for e in entries):
-    entries.append({"path": skills_dir})
+if not any(e.get("path") == register_path for e in entries):
+    entries.append({"path": register_path})
 
 with open(json_file, "w") as f:
     json.dump(data, f, indent=2)
     f.write("\n")
 PYEOF
-  echo "  $json_file  (registered $SKILLS_DIR)"
+  echo "  $json_file  (registered $register_path)"
 }
 
 remove_skills_json_entry() {
   local agents_dir="$1"
+  local register_path="$2"
   local json_file="$agents_dir/skills.json"
   [ -f "$json_file" ] || return 0
   if ! command -v python3 >/dev/null 2>&1; then
     echo "  warning: python3 not found, left $json_file untouched" >&2
     return 0
   fi
-  python3 - "$json_file" "$SKILLS_DIR" <<'PYEOF'
+  python3 - "$json_file" "$register_path" <<'PYEOF'
 import json, os, sys
 
-json_file, skills_dir = sys.argv[1], sys.argv[2]
+json_file, register_path = sys.argv[1], sys.argv[2]
 content = open(json_file).read().strip()
 data = json.loads(content) if content else {}
-entries = [e for e in data.get("entries", []) if e.get("path") != skills_dir]
+entries = [e for e in data.get("entries", []) if e.get("path") != register_path]
 
 if entries:
     data["entries"] = entries
@@ -178,23 +265,25 @@ elif data.get("inherits") or (set(data.keys()) - {"entries"}):
 else:
     os.remove(json_file)
 PYEOF
-  echo "  $json_file  (unregistered $SKILLS_DIR)"
+  echo "  $json_file  (unregistered $register_path)"
 }
 
-# OpenCode-specific: register $SKILLS_DIR under "skills": {"paths": [...]}
-# in the project's opencode.json. OpenCode checks ./opencode.json,
+# OpenCode-specific: register a path under "skills": {"paths": [...]} in the
+# project's opencode.json. $2 is what to register -- see write_skills_json
+# above for the absolute-vs-relative rule. OpenCode checks ./opencode.json,
 # ./opencode.jsonc, then .opencode/opencode.json, in that order; this edits
 # whichever already exists, or creates ./opencode.json if none do. A
 # pre-existing .jsonc is never auto-edited (comments don't survive a JSON
 # round-trip) -- printed as a manual instruction instead.
 write_opencode_config() {
   local project="$1"
+  local register_path="$2"
   local target=""
   if [ -f "$project/opencode.json" ]; then
     target="$project/opencode.json"
   elif [ -f "$project/opencode.jsonc" ]; then
     echo "  $project/opencode.jsonc exists; skilled won't auto-edit JSONC (comments don't survive a rewrite)." >&2
-    echo "    Add by hand: {\"skills\": {\"paths\": [\"$SKILLS_DIR\"]}}" >&2
+    echo "    Add by hand: {\"skills\": {\"paths\": [\"$register_path\"]}}" >&2
     return 0
   elif [ -f "$project/.opencode/opencode.json" ]; then
     target="$project/.opencode/opencode.json"
@@ -207,10 +296,10 @@ write_opencode_config() {
     return 0
   fi
 
-  python3 - "$target" "$SKILLS_DIR" <<'PYEOF'
+  python3 - "$target" "$register_path" <<'PYEOF'
 import json, os, sys
 
-json_file, skills_dir = sys.argv[1], sys.argv[2]
+json_file, register_path = sys.argv[1], sys.argv[2]
 created = not os.path.exists(json_file)
 data = {}
 if not created:
@@ -222,18 +311,19 @@ if created:
 
 skills = data.setdefault("skills", {})
 paths = skills.setdefault("paths", [])
-if skills_dir not in paths:
-    paths.append(skills_dir)
+if register_path not in paths:
+    paths.append(register_path)
 
 with open(json_file, "w") as f:
     json.dump(data, f, indent=2)
     f.write("\n")
 PYEOF
-  echo "  $target  (registered $SKILLS_DIR)"
+  echo "  $target  (registered $register_path)"
 }
 
 remove_opencode_config_entry() {
   local project="$1"
+  local register_path="$2"
   local target=""
   for candidate in "$project/opencode.json" "$project/.opencode/opencode.json"; do
     if [ -f "$candidate" ]; then
@@ -248,14 +338,14 @@ remove_opencode_config_entry() {
     return 0
   fi
 
-  python3 - "$target" "$SKILLS_DIR" <<'PYEOF'
+  python3 - "$target" "$register_path" <<'PYEOF'
 import json, os, sys
 
-json_file, skills_dir = sys.argv[1], sys.argv[2]
+json_file, register_path = sys.argv[1], sys.argv[2]
 content = open(json_file).read().strip()
 data = json.loads(content) if content else {}
 skills = data.get("skills", {})
-paths = [p for p in skills.get("paths", []) if p != skills_dir]
+paths = [p for p in skills.get("paths", []) if p != register_path]
 
 if paths:
     skills["paths"] = paths
@@ -274,7 +364,7 @@ if set(data.keys()) - {"$schema"}:
 else:
     os.remove(json_file)
 PYEOF
-  echo "  $target  (unregistered $SKILLS_DIR)"
+  echo "  $target  (unregistered $register_path)"
 }
 
 # Report nested roots this install did NOT reach: git submodules (a separate
@@ -340,34 +430,66 @@ for pattern in (ws or []):
   echo "workspace package is a directory someone might cd into). Not installed"
   echo "automatically -- only run this for the ones that are real work surfaces,"
   echo "not vendored dependencies:"
+  local vendor_flag=""
+  [ "$VENDOR" -eq 1 ] && vendor_flag=" --vendor"
   for f in "${unique[@]}"; do
-    echo "  ./install.sh $f"
+    echo "  ./install.sh $f$vendor_flag"
   done
 }
 
+# Path to register in .agents/skills.json / opencode.json: this repo's
+# absolute path in symlink mode, or a project-relative path in --vendor
+# mode (Antigravity resolves a path with no leading / or ~/ from the repo
+# root; OpenCode's own example config does the same for its native
+# .opencode/skills entry).
+if [ "$VENDOR" -eq 1 ]; then
+  ANTIGRAVITY_PATH=".agents/skills"
+  if [ "$DO_CLAUDE" -eq 1 ]; then
+    OPENCODE_PATH=".claude/skills"
+  else
+    OPENCODE_PATH=".agents/skills"
+  fi
+else
+  ANTIGRAVITY_PATH="$SKILLS_DIR"
+  OPENCODE_PATH="$SKILLS_DIR"
+fi
+
 if [ "$MODE" = "uninstall" ]; then
   echo "Removing skilled from $PROJECT_PATH:"
-  [ "$DO_CLAUDE" -eq 1 ] && unlink_all "$PROJECT_PATH/.claude/skills"
-  if [ "$DO_ANTIGRAVITY" -eq 1 ]; then
-    unlink_all "$PROJECT_PATH/.agents/skills"
-    remove_skills_json_entry "$PROJECT_PATH/.agents"
+  if [ "$DO_CLAUDE" -eq 1 ]; then
+    if [ "$VENDOR" -eq 1 ]; then remove_vendored "$PROJECT_PATH/.claude/skills"; else unlink_all "$PROJECT_PATH/.claude/skills"; fi
   fi
-  [ "$DO_OPENCODE" -eq 1 ] && remove_opencode_config_entry "$PROJECT_PATH"
+  if [ "$DO_ANTIGRAVITY" -eq 1 ]; then
+    if [ "$VENDOR" -eq 1 ]; then remove_vendored "$PROJECT_PATH/.agents/skills"; else unlink_all "$PROJECT_PATH/.agents/skills"; fi
+    remove_skills_json_entry "$PROJECT_PATH/.agents" "$ANTIGRAVITY_PATH"
+  fi
+  [ "$DO_OPENCODE" -eq 1 ] && remove_opencode_config_entry "$PROJECT_PATH" "$OPENCODE_PATH"
   exit 0
 fi
 
 echo "Installing skilled into $PROJECT_PATH:"
-[ "$DO_CLAUDE" -eq 1 ] && link_all "$PROJECT_PATH/.claude/skills"
-if [ "$DO_ANTIGRAVITY" -eq 1 ]; then
-  link_all "$PROJECT_PATH/.agents/skills"
-  write_skills_json "$PROJECT_PATH/.agents"
+if [ "$DO_CLAUDE" -eq 1 ]; then
+  if [ "$VENDOR" -eq 1 ]; then copy_all "$PROJECT_PATH/.claude/skills"; else link_all "$PROJECT_PATH/.claude/skills"; fi
 fi
-[ "$DO_OPENCODE" -eq 1 ] && write_opencode_config "$PROJECT_PATH"
+if [ "$DO_ANTIGRAVITY" -eq 1 ]; then
+  if [ "$VENDOR" -eq 1 ]; then copy_all "$PROJECT_PATH/.agents/skills"; else link_all "$PROJECT_PATH/.agents/skills"; fi
+  write_skills_json "$PROJECT_PATH/.agents" "$ANTIGRAVITY_PATH"
+fi
+[ "$DO_OPENCODE" -eq 1 ] && write_opencode_config "$PROJECT_PATH" "$OPENCODE_PATH"
 detect_nested_roots "$PROJECT_PATH"
 
 echo
-echo "Each skill is a symlink back into this repo, so 'git pull' here updates"
-echo "every project it's installed into. Nothing is copied."
+if [ "$VENDOR" -eq 1 ]; then
+  echo "Vendored: real copies, not symlinks. git add-able, works for anyone who"
+  echo "clones this project without a separate checkout of skilled. Re-run"
+  echo "'--vendor' after skilled updates upstream to resync -- nothing here"
+  echo "detects staleness automatically."
+else
+  echo "Each skill is a symlink back into this repo, so 'git pull' here updates"
+  echo "every project it's installed into. Nothing is copied. This only works on"
+  echo "this machine -- see the header comment for '--vendor' if this project is"
+  echo "shared with others."
+fi
 echo
 echo "Note: only Claude Code understands 'disable-model-invocation'. On OpenCode"
 echo "and Antigravity, every skill is model-selectable regardless of that field,"
