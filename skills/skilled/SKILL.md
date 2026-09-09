@@ -20,6 +20,8 @@ Before routing, check and say in two lines:
 The route most work travels.
 
 1. **`/domain-interview`** sharpens the idea by interview, and leaves what it learns in `CONTEXT.md` and ADRs. Start here whenever there is a repository under you. With no repository, use **`/clarify-requirements`**: same interview, no paper trail.
+
+   For work too big for a spec alone to hold — a new-project bootstrap, a large feature, a non-obvious integration — run **`/design-doc`** first and feed what it produces into `/write-spec`.
 2. **Can every question be settled in conversation?** If one needs a runnable answer (a state model you have to feel, a UI you have to see), detour through `prototype`, bridged by **`/handoff`** in both directions.
 3. **Is this a multi-session build?**
    - **Yes** → **`/write-spec`**, then **`/write-tickets`** to split it into tracer-bullet tickets, each declaring its blocking edges. Then either **`/implement`** per ticket, clearing context between each one, or **`/implement-spec`** to work the whole graph at once: it computes the ready frontier from the blocking edges and runs implementer subagents across it, landing one PR. Per-ticket when you want to stay in the loop; whole-spec when the graph is wide and you do not.
@@ -61,6 +63,10 @@ These are model-invoked, so they fire on their own. Named here so you know what 
 - `domain-modeling` - the active discipline of sharpening domain terms and recording ADRs.
 - `tdd`, `review-diff`, `research`, `prototype`, `diagnose-bug`, `resolve-merge-conflicts`, `generate-runbook`, `writing-for-agents`.
 
+## Phase boundaries
+
+At the boundary between two phases (interview, implementation, QA) you have five options: **Continue**, **`/clear`**, **`/handoff`** (or **`/handoff-to-agent`**), **subagent**, or **`/compact`**. Picking between them is the fuzziest decision in this whole map. Read [PHASE-BOUNDARIES.md](PHASE-BOUNDARIES.md) for the ordered tree and why **Continue** is the one to rule out first. Make the call **at** a boundary; mid-phase, continue or split the rest into subagents.
+
 ## Standalone
 
 Off the main flow.
@@ -80,4 +86,4 @@ Off the main flow.
 
 ## Maintenance
 
-**`/skilled-update`** checks whether any of the 26 skills ported from upstream has changed since we forked, and shows you the diff. It never applies anything silently.
+**`/skilled-update`** checks whether any of the 30 skills ported from upstream has changed since we forked, and shows you the diff. It never applies anything silently.

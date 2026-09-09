@@ -38,6 +38,8 @@ Multi-context repo (presence of `CONTEXT-MAP.md` at the root):
         └── docs/adr/
 ```
 
+Submodule (presence of `.gitmodules` at the root): each entry is a **separate git repo**, not a bounded context inside this one. Nothing above — this repo's `CLAUDE.md`, `CONTEXT.md`, `ARCHITECTURE.md`, `docs/adr/` — is visible to a session rooted inside the submodule. If work is happening there, check the submodule's own root for its own copies of these files before assuming there are none to read. If it has none, that's a `skilled-setup` gap for that submodule, not evidence the project has no conventions.
+
 ## Use the glossary's vocabulary
 
 When your output names a domain concept (in an issue title, a refactor proposal, a hypothesis, a test name), use the term as defined in `CONTEXT.md`. Don't drift to synonyms the glossary explicitly avoids.

@@ -1,47 +1,14 @@
 # Architecture: <project name>
 
-The runtime shape of this system. An agent reads this before designing anything, so it knows what exists, what the constraints are, and what is deliberately not built.
+The runtime shape of this system. Read this before designing anything: what exists, what the real constraints are, and what is deliberately not built.
 
 ## Shape
 
-<A short prose paragraph or a diagram. What talks to what.>
-
-| Component | Owns | Talks to |
-| :--- | :--- | :--- |
-| <service / app> | <the data and decisions it is responsible for> | <its dependencies> |
-
-## Data stores
-
-| Store | Technology | Holds | Notes |
-| :--- | :--- | :--- | :--- |
-| <name> | <Postgres 16 / Redis / S3> | <what lives here> | <replication, retention, anything surprising> |
-
-## Async work
-
-What runs outside the request cycle, and what deliberately does not.
-
-| Job / queue | Trigger | Guarantees | Failure handling |
-| :--- | :--- | :--- | :--- |
-| <name> | <event or schedule> | <at-least-once, ordering, idempotency key> | <retries, DLQ> |
-
-If nothing here is async, say so. "Everything is synchronous; there is no queue" is useful information that stops an agent assuming one exists.
-
-## Seams
-
-The places where behaviour can be swapped without editing in that place. Each seam names its interface and every adapter behind it.
-
-| Seam | Interface | Adapters |
-| :--- | :--- | :--- |
-| <name> | <what a caller must know> | <production, test, other> |
-
-## External integrations
-
-| Service | Used for | Failure mode when it is down |
-| :--- | :--- | :--- |
+<2-4 sentences: what talks to what, and where state lives. Point at an existing diagram if one's already true; don't draw a new one just for this file.>
 
 ## Constraints
 
-The real numbers and limits that decide whether a design is right. Speculative work gets justified against this section or not at all.
+The real numbers and limits that decide whether a design is right. This is the section the other skills actually read before proposing anything — speculative work gets justified against it or not at all.
 
 - **Scale**: <requests/sec, rows, users, data volume, growth rate>
 - **Latency budget**: <p50/p99 targets for the paths that matter>
@@ -60,3 +27,9 @@ What this system deliberately does not do, and will not be built to do. An agent
 ## Decisions
 
 Non-obvious choices are recorded as ADRs in `docs/adr/`. Read the relevant one before changing something that looks wrong.
+
+## Worth knowing
+
+Optional. Anything else genuinely load-bearing that a reader would otherwise get wrong or miss entirely: a data store playing an unusual role (Redis as the job queue, not just a cache), a background job with real guarantees, an external integration whose failure mode matters, a boundary between parts of the system a caller needs to respect. Skip anything that's either not true here or obvious from five minutes of reading the code — this section earns its place by preventing a wrong guess, not by being complete.
+
+- <e.g. "Redis is the job queue, not just a cache — see JOBS.md">

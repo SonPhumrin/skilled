@@ -31,16 +31,25 @@ inline the material into another skill.
 
 Run `./install.sh /path/to/project` first, then check inside that project:
 
-- **Claude Code**: `/skills` lists all 41; the 23 user-invoked ones are absent
+- **Claude Code**: `/skills` lists all 37; the 23 user-invoked ones are absent
   from auto-invocation but reachable by typing `/<name>`.
-- **OpenCode**: reads both `.claude/skills/` and `.agents/skills/` at the
-  project level, so the same 41 should appear. Confirm `opencode.json` has no
+- **OpenCode**: has no project-level directory scan — its own embedded docs
+  say external-skill auto-load only covers the *global* `~/.claude/` and
+  `~/.agents/`, never a project's. `install.sh` instead writes a
+  `"skills": {"paths": [...]}` entry to the project's `opencode.json`
+  pointing straight at this repo's `skills/` dir; confirm that entry is
+  present and that `opencode.json` has no
   `"permission": {"skill": {...: "deny"}}` entry blocking one of them.
-- **Antigravity**: reads `.agents/skills/` at the project level. Because
-  Antigravity ignores `disable-model-invocation`, **all 41** are model-selectable
-  there, including the 23 meant to be user-only elsewhere. That's a real gap
-  between harnesses, not a bug in this repo — there is no portable "user-only"
-  field in the open Agent Skills spec today.
+- **Antigravity**: reads `.agents/skills/` at the project level, but its own
+  logs have shown that scan going stale on a symlinked folder ("Slash
+  commands unchanged, skipping update" even after a real change). `install.sh`
+  also writes `.agents/skills.json` (Antigravity's own documented mechanism
+  for skills outside its default discovery locations) as a belt-and-suspenders
+  fix; confirm it's present and points at this repo's `skills/` dir. Because
+  Antigravity ignores `disable-model-invocation`, **all 37** are
+  model-selectable there, including the 23 meant to be user-only elsewhere.
+  That's a real gap between harnesses, not a bug in this repo — there is no
+  portable "user-only" field in the open Agent Skills spec today.
 - Verify the install itself with `python3 tests/validate_skills.py --project /path/to/project`.
 
 ## Setup skill, end to end

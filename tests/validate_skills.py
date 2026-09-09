@@ -9,6 +9,7 @@ single-source-of-truth across the design skills.
 Pass --project /path/to/repo to additionally check that repo's per-project
 install (written by install.sh) resolves back into this repo.
 """
+import json
 import pathlib
 import re
 import sys
@@ -154,9 +155,13 @@ def check_single_source_of_truth():
 
 def check_install_state(project_path):
     """If a project path was given, its .claude/skills and .agents/skills
-    symlinks (written by install.sh) should resolve back into this repo.
-    With no project path, this is a no-op: install is per-project now, and
-    there is no single global location to assume."""
+    symlinks (written by install.sh) should resolve back into this repo, and
+    its .agents/skills.json should register this repo's skills/ dir for
+    Antigravity's documented external-registration mechanism (its default
+    .agents/skills/ scan has been observed to miss symlinked folders; see
+    install.sh's header comment). With no project path, this is a no-op:
+    install is per-project now, and there is no single global location to
+    assume."""
     if project_path is None:
         return
     targets = [project_path / ".claude" / "skills", project_path / ".agents" / "skills"]
@@ -173,6 +178,48 @@ def check_install_state(project_path):
                 warn(f"{target}/{name} exists but is not a symlink")
             elif link.resolve() != (SKILLS_DIR / name).resolve():
                 fail(f"{target}/{name} points somewhere else: {link.resolve()}")
+
+    skills_json = project_path / ".agents" / "skills.json"
+    if not skills_json.is_file():
+        warn(f"{skills_json} does not exist (run ./install.sh {project_path}); "
+             f"Antigravity may not discover these skills without it")
+    else:
+        try:
+            data = json.loads(skills_json.read_text() or "{}")
+        except json.JSONDecodeError as e:
+            fail(f"{skills_json} is not valid JSON: {e}")
+        else:
+            paths = {e.get("path") for e in data.get("entries", [])}
+            if str(SKILLS_DIR) not in paths:
+                warn(f"{skills_json} has no entry for {SKILLS_DIR} "
+                     f"(run ./install.sh {project_path})")
+
+    # OpenCode's external-skill auto-load only scans ~/.claude/ and
+    # ~/.agents/ (global, per its own docs) -- never a project's
+    # .claude/skills or .agents/skills. Project-scoped skills need the
+    # "skills": {"paths": [...]} entry in opencode.json instead.
+    oc_json = project_path / "opencode.json"
+    oc_jsonc = project_path / "opencode.jsonc"
+    oc_nested = project_path / ".opencode" / "opencode.json"
+    if oc_jsonc.is_file() and not oc_json.is_file() and not oc_nested.is_file():
+        warn(f"{oc_jsonc} exists as JSONC; install.sh does not auto-edit it. "
+             f'Add by hand: {{"skills": {{"paths": ["{SKILLS_DIR}"]}}}}')
+    else:
+        oc_target = oc_json if oc_json.is_file() else oc_nested
+        if not oc_target.is_file():
+            warn(f"{oc_json} does not exist (run ./install.sh {project_path}); "
+                 f"OpenCode has no project-level auto-scan, so it won't see "
+                 f"these skills without it")
+        else:
+            try:
+                data = json.loads(oc_target.read_text() or "{}")
+            except json.JSONDecodeError as e:
+                fail(f"{oc_target} is not valid JSON: {e}")
+            else:
+                paths = set(data.get("skills", {}).get("paths", []))
+                if str(SKILLS_DIR) not in paths:
+                    warn(f"{oc_target} has no skills.paths entry for {SKILLS_DIR} "
+                         f"(run ./install.sh {project_path})")
 
 
 def check_reserved_and_collisions():

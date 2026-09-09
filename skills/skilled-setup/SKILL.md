@@ -22,6 +22,7 @@ Read the repo. Assume nothing:
 - `AGENTS.md` and `CLAUDE.md` at the root: does either exist, and does either already carry an `## Agent skills` section?
 - `CONTEXT.md`, `ARCHITECTURE.md`, `docs/adr/`, `docs/agents/`: does prior output already exist?
 - `.scratch/`: a sign a local-markdown tracker convention is already in use
+- `.gitmodules`: any submodules? Each is a separate git repo with its own root. Nothing you write at the parent's root — `CLAUDE.md`, `CONTEXT.md`, `ARCHITECTURE.md` — is visible to a session opened inside one.
 - Is the `triage` skill installed? This decides whether section C runs at all.
 - **The system itself**, because you are drafting `ARCHITECTURE.md` from it: entry points, the dependency manifest, `docker-compose.yml` or equivalent, migrations or schema files, anything that looks like a worker or job definition, and the test setup. Note what the datastore actually is and whether anything runs outside the request cycle.
 
@@ -29,12 +30,14 @@ Read the repo. Assume nothing:
 
 Summarise what is present and what is missing. Then take the sections in order, one at a time.
 
+If `.gitmodules` lists submodules, name which ones look like places agent work will actually happen (a UI portal, a service with its own tickets — not a vendored dependency). Ask the user to confirm the list, then repeat steps 1 through 4 inside each confirmed submodule, treating it as its own repo with its own root. Skip submodules the user doesn't confirm.
+
 Lead each section with the recommended answer so the user can accept it in a word. Give a one-line explainer only where the choice genuinely branches, and skip a section entirely when exploration already settled it.
 
 **Section A: project documents.** Not a question about layout, a question about content. Draft both files **filled in from what you found in step 1**, never as blank templates:
 
 - `CONTEXT.md` from [context-template.md](context-template.md): seed the Language section with the terms that actually recur in the codebase, each with your best definition. Mark the ones you are guessing at.
-- `ARCHITECTURE.md` from [architecture-template.md](architecture-template.md): fill Shape, Data stores, Async work, and External integrations from the code. Leave **Constraints** and **Non-goals** as questions for the user, since neither is discoverable from source and both are the sections the other skills lean on hardest.
+- `ARCHITECTURE.md` from [architecture-template.md](architecture-template.md): fill **Shape** in 2-4 sentences from the code, and **Worth knowing** only with what a reader would otherwise get wrong or miss — skip it entirely if nothing qualifies. Leave **Constraints** and **Non-goals** as questions for the user, since neither is discoverable from source and both are the sections every other skill that reads this file actually reads: `requirements-interview`, `implement`, `review-diff`, `code-craft`, and `skilled` itself all cite Constraints/Non-goals by name, none cite Shape or Worth knowing. Don't pad the file trying to fill sections nothing downstream reads.
 
 Ask the user for exactly two things here: the constraints that are real (scale, latency budget, team, availability), and the non-goals. If they have none in mind, ask what the system is deliberately *not* for. An empty Non-goals section is a missed opportunity, not a neutral default.
 
@@ -106,3 +109,5 @@ Then write the files, using [domain.md](domain.md) for the domain consumer rules
 Tell the user which skills now read these files, and that `docs/agents/*.md` can be edited directly later. Re-running this skill is only needed to switch issue trackers or start over.
 
 Say plainly which parts of `ARCHITECTURE.md` are still guesses, so they know what to correct.
+
+If any submodules were set up, say so per submodule — its own `CLAUDE.md`/`AGENTS.md`, its own `CONTEXT.md`/`ARCHITECTURE.md`. Warn that a stray instruction file already at the submodule's root (an existing `README.md`, `.github/copilot-instructions.md`) may tell agents to read something wholesale that a newer, narrower spec has since superseded — worth a skim during this setup, not just left for later.

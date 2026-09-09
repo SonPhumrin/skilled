@@ -5,6 +5,7 @@ Every row here forked from [mattpocock/skills](https://github.com/mattpocock/ski
 | Skill here | Upstream path | Forked at commit |
 | :--- | :--- | :--- |
 | architecture-review | skills/engineering/improve-codebase-architecture/SKILL.md | 3cca18b368ae95cdbdebbff572ccafa662551015 |
+| clarify-requirements | skills/productivity/grill-me/SKILL.md | 3cca18b368ae95cdbdebbff572ccafa662551015 |
 | decision-map | skills/engineering/wayfinder/SKILL.md | 3cca18b368ae95cdbdebbff572ccafa662551015 |
 | design-workflows | skills/in-progress/loop-me/SKILL.md | 3cca18b368ae95cdbdebbff572ccafa662551015 |
 | diagnose-bug | skills/engineering/diagnosing-bugs/SKILL.md | 3cca18b368ae95cdbdebbff572ccafa662551015 |
@@ -17,12 +18,15 @@ Every row here forked from [mattpocock/skills](https://github.com/mattpocock/ski
 | handoff | skills/productivity/handoff/SKILL.md | 3cca18b368ae95cdbdebbff572ccafa662551015 |
 | handoff-to-agent | skills/in-progress/claude-handoff/SKILL.md | 3cca18b368ae95cdbdebbff572ccafa662551015 |
 | implement-spec | skills/in-progress/implement-spec/SKILL.md | 3cca18b368ae95cdbdebbff572ccafa662551015 |
+| module-design | skills/engineering/codebase-design/SKILL.md | 3cca18b368ae95cdbdebbff572ccafa662551015 |
 | prototype | skills/engineering/prototype/SKILL.md | 3cca18b368ae95cdbdebbff572ccafa662551015 |
+| requirements-interview | skills/productivity/grilling/SKILL.md | 3cca18b368ae95cdbdebbff572ccafa662551015 |
 | research | skills/engineering/research/SKILL.md | 3cca18b368ae95cdbdebbff572ccafa662551015 |
 | resolve-merge-conflicts | skills/engineering/resolving-merge-conflicts/SKILL.md | 3cca18b368ae95cdbdebbff572ccafa662551015 |
 | retro | skills/in-progress/retro/SKILL.md | 3cca18b368ae95cdbdebbff572ccafa662551015 |
 | review-diff | skills/engineering/code-review/SKILL.md | 3cca18b368ae95cdbdebbff572ccafa662551015 |
 | setup-pre-commit | skills/misc/setup-pre-commit/SKILL.md | 3cca18b368ae95cdbdebbff572ccafa662551015 |
+| skilled | skills/engineering/ask-matt/SKILL.md | 3cca18b368ae95cdbdebbff572ccafa662551015 |
 | tdd | skills/engineering/tdd/SKILL.md | 3cca18b368ae95cdbdebbff572ccafa662551015 |
 | teach | skills/productivity/teach/SKILL.md | 3cca18b368ae95cdbdebbff572ccafa662551015 |
 | triage | skills/engineering/triage/SKILL.md | 3cca18b368ae95cdbdebbff572ccafa662551015 |
@@ -31,4 +35,4 @@ Every row here forked from [mattpocock/skills](https://github.com/mattpocock/ski
 | write-tickets | skills/engineering/to-tickets/SKILL.md | 3cca18b368ae95cdbdebbff572ccafa662551015 |
 | writing-for-agents | skills/productivity/writing-for-agents/SKILL.md | 3cca18b368ae95cdbdebbff572ccafa662551015 |
 
-The 11 skills with no row here (`code-craft`, `module-design`, `observability`, `implement`, `requirements-interview`, `clarify-requirements`, `skilled`, `skilled-setup`, `skilled-update`, `design-doc`, `verify-in-browser`) are either wholly original or rewritten heavily enough that a diff against upstream would be noise, not signal.
+The 7 skills with no row here (`code-craft`, `observability`, `implement`, `skilled-setup`, `skilled-update`, `design-doc`, `verify-in-browser`) are either wholly original or rewritten heavily enough that a diff against upstream would be noise, not signal.

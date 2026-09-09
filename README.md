@@ -16,11 +16,13 @@ flowchart LR
 
     Repo -- "install.sh /path/to/project" --> ClaudeDir[".claude/skills/<br/>(in that project)"]
     Repo -- "install.sh /path/to/project" --> AgentsDir[".agents/skills/<br/>(in that project)"]
+    Repo -- "install.sh /path/to/project" --> SkillsJson[".agents/skills.json<br/>(in that project)"]
+    Repo -- "install.sh /path/to/project" --> OcJson["opencode.json<br/>(in that project)"]
 
     ClaudeDir --> ClaudeCode["Claude Code"]
-    ClaudeDir --> OpenCode["OpenCode"]
-    AgentsDir --> OpenCode
     AgentsDir --> Antigravity["Antigravity CLI / IDE"]
+    SkillsJson --> Antigravity
+    OcJson --> OpenCode["OpenCode"]
 
     style Repo fill:#2d2d2d,color:#fff,stroke:#888
     style ClaudeCode fill:#3b5bdb,color:#fff,stroke:#333
@@ -28,7 +30,7 @@ flowchart LR
     style Antigravity fill:#3b5bdb,color:#fff,stroke:#333
 ```
 
-`.claude/skills/` is Claude Code's native location; OpenCode reads it too. `.agents/skills/` is Antigravity's project scope; OpenCode reads that as well, so it's covered from either side. See [Supported harnesses](#supported-harnesses) for the one behavioral gap this creates.
+`.claude/skills/` is Claude Code's native project scope. Antigravity reads `.agents/skills/` as its native project scope too, plus `.agents/skills.json` as a documented fallback, since its directory scan has been observed going stale on a symlinked folder. OpenCode has no project-level directory scan at all — its own docs say external-skill auto-load only covers the *global* `~/.claude/` and `~/.agents/`, never a project's — so `install.sh` registers this repo straight into the project's `opencode.json` instead. See [Supported harnesses](#supported-harnesses) for the harness-by-harness detail.
 
 ### Use
 
@@ -69,10 +71,12 @@ Every skill here is a plain `SKILL.md` under the open [Agent Skills](https://age
 | Harness | Reads from |
 | :--- | :--- |
 | Claude Code | `<project>/.claude/skills/` (native) |
-| OpenCode | both `<project>/.claude/skills/` and `<project>/.agents/skills/` |
-| Antigravity (CLI + IDE) | `<project>/.agents/skills/` (its project scope) |
+| Antigravity (CLI + IDE) | `<project>/.agents/skills/` (native) + `<project>/.agents/skills.json` (its own documented external-registration fallback, since the native scan can miss a symlinked folder) |
+| OpenCode | `<project>/opencode.json`'s `"skills": {"paths": [...]}` entry — its external-skill auto-load only scans the *global* `~/.claude/` and `~/.agents/`, per its own embedded docs, never a project's `.claude/skills` or `.agents/skills` |
 
-**One real gap, not a bug**: `disable-model-invocation` (the field that keeps the 23 user-invoked skills out of the model's own reach) is a Claude Code extension. OpenCode and Antigravity both ignore unrecognized frontmatter keys per the open spec, so on those two harnesses every skill here is model-selectable, including the ones meant to be typed by hand. There is no portable "user-only" field in the standard today. See [tests/MANUAL-CHECKS.md](tests/MANUAL-CHECKS.md).
+**Two real gaps, not bugs**: `disable-model-invocation` (the field that keeps the 23 user-invoked skills out of the model's own reach) is a Claude Code extension. OpenCode and Antigravity both ignore unrecognized frontmatter keys per the open spec, so on those two harnesses every skill here is model-selectable, including the ones meant to be typed by hand. There is no portable "user-only" field in the standard today.
+
+Separately, OpenCode's project-level skill discovery isn't a directory scan at all — it's config-driven (`opencode.json`), which `install.sh` handles automatically, but a hand-edited or `.jsonc` config in that project needs the `skills.paths` entry added by hand (`install.sh` will tell you the exact line if it can't edit it for you). See [tests/MANUAL-CHECKS.md](tests/MANUAL-CHECKS.md).
 
 `~/.agents/skills/` (the *global*, home-directory version of that second path) is deliberately never touched: it is managed by the separate `npx skills` installer with its own lockfile, and this repo only ever writes the project-local `.agents/skills/` inside a specific repo, never the one in your home directory.
 
@@ -116,7 +120,7 @@ Every skill here is a plain `SKILL.md` under the open [Agent Skills](https://age
 
 | Skill | |
 | :--- | :--- |
-| `code-craft` `[M]` | The senior-engineer judgment ladder: how much to build, cohesion/coupling/Demeter/CQS/composition/fail-fast, naming and function shape, and general data/system design (async, idempotency, retries, indexing, pagination, transactions). |
+| `code-craft` `[M]` | The senior-engineer judgment ladder: how much to build, cohesion/coupling/Demeter/CQS/composition/fail-fast, naming and function shape, data/system design (async, idempotency, retries, indexing, pagination, transactions), performance/concurrency, and security by default. |
 | `module-design` `[M]` | Deep modules, seams, adapters, SOLID. |
 | `observability` `[M]` | What to log, what to measure, what to trace. |
 | `verify-in-browser` `[M]` | Drive the app in a real browser to check a ticket's acceptance criteria, UI, and translations. |

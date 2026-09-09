@@ -6,11 +6,11 @@ disable-model-invocation: true
 
 # Skilled Update
 
-26 of the 37 skills in this repo were ported from [mattpocock/skills](https://github.com/mattpocock/skills), then renamed and, in several cases, rewritten. Their provenance lives in this skill's own [upstream-map.md](upstream-map.md), not in each skill's frontmatter — that file is the only thing that reads it, so keeping it there costs zero tokens on every other skill's fire.
+30 of the 37 skills in this repo were ported from [mattpocock/skills](https://github.com/mattpocock/skills), then renamed and, in several cases, rewritten. Their provenance lives in this skill's own [upstream-map.md](upstream-map.md), not in each skill's frontmatter — that file is the only thing that reads it, so keeping it there costs zero tokens on every other skill's fire.
 
 This skill does not silently overwrite anything. Upstream's content is not ours to reapply blind: names differ, cross-references were retargeted, and several skills were rewritten rather than copied. What this does is tell you **what changed upstream since we forked**, and leave the decision of whether and how to fold it in to whoever invokes it.
 
-The 11 skills with no row in `upstream-map.md` are either wholly original or rewritten heavily enough that a diff against upstream would be noise, not signal. Skip them; the map file itself names them.
+The 7 skills with no row in `upstream-map.md` are either wholly original or rewritten heavily enough that a diff against upstream would be noise, not signal. Skip them; the map file itself names them.
 
 ## Process
 
