@@ -1,50 +1,82 @@
 #!/usr/bin/env bash
-# Install skilled into a single project, for every harness that reads the
-# Agent Skills format there: Claude Code, OpenCode, and Antigravity. Every
-# location this writes is project-scoped -- nothing here touches a global
-# (home-directory) config, on any harness.
+# Install skilled into a single project, for the harnesses you actually use
+# there. Every location this writes is project-scoped -- nothing here
+# touches a global (home-directory) config, on any harness.
 #
 # Usage:
-#   ./install.sh /path/to/project              install into that project
-#   ./install.sh /path/to/project --uninstall  remove what this created
+#   ./install.sh /path/to/project [--claude] [--opencode] [--antigravity]
+#   ./install.sh /path/to/project [flags...] --uninstall
 #
-# What gets written, and why each one is needed:
-#   <project>/.claude/skills       - Claude Code's native project scope.
-#   <project>/.agents/skills       - Antigravity's native project scope.
-#   <project>/.agents/skills.json  - Antigravity also needs this. Its own
-#                                     logs show its default .agents/skills/
-#                                     scan can go stale on a symlinked folder
-#                                     ("Slash commands unchanged, skipping
-#                                     update" even after a real change), and
-#                                     its own docs recommend exactly this file
-#                                     for skills living outside the default
-#                                     discovery locations. Belt and suspenders
-#                                     with the symlinks above, not a
-#                                     replacement for them.
-#   <project>/opencode.json        - Required for OpenCode, not optional: its
-#                                     own embedded docs are explicit that its
-#                                     external-skill auto-load only scans
-#                                     ~/.claude/ and ~/.agents/ (home
-#                                     directory, global) and NEVER a project's
-#                                     .claude/skills or .agents/skills. The
-#                                     "skills": {"paths": [...]} entry this
-#                                     writes is OpenCode's own project-scoped
-#                                     mechanism -- there is no directory-scan
-#                                     equivalent for it at the project level.
+# No harness flag = all three (unchanged default). Pass one or more to
+# install only those -- e.g. `--claude` alone if a project never runs
+# OpenCode or Antigravity, so it doesn't pick up opencode.json or
+# .agents/skills.json for tools it doesn't use.
+#
+# What each flag writes, and why:
+#   --claude       <project>/.claude/skills   - Claude Code's native project
+#                                                scope.
+#   --antigravity  <project>/.agents/skills   - Antigravity's native project
+#                                                scope, PLUS
+#                                                <project>/.agents/skills.json
+#                                                -- Antigravity's own logs
+#                                                show the native scan can go
+#                                                stale on a symlinked folder
+#                                                ("Slash commands unchanged,
+#                                                skipping update" even after a
+#                                                real change), and its own
+#                                                docs recommend this file for
+#                                                skills outside its default
+#                                                discovery locations. Belt and
+#                                                suspenders, not a swap.
+#   --opencode     <project>/opencode.json    - Required, not optional: its
+#                                                own embedded docs say
+#                                                external-skill auto-load only
+#                                                scans ~/.claude/ and
+#                                                ~/.agents/ (global), never a
+#                                                project's .claude/skills or
+#                                                .agents/skills. The
+#                                                "skills": {"paths": [...]}
+#                                                entry this writes is
+#                                                OpenCode's own project-scoped
+#                                                mechanism.
 set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SKILLS_DIR="$REPO_DIR/skills"
 
-if [ $# -lt 1 ]; then
-  echo "Usage: $0 /path/to/project [--uninstall]" >&2
+MODE="install"
+DO_CLAUDE=0
+DO_OPENCODE=0
+DO_ANTIGRAVITY=0
+PROJECT_PATH=""
+
+for arg in "$@"; do
+  case "$arg" in
+    --uninstall) MODE="uninstall" ;;
+    --claude) DO_CLAUDE=1 ;;
+    --opencode) DO_OPENCODE=1 ;;
+    --antigravity) DO_ANTIGRAVITY=1 ;;
+    --*) echo "error: unknown flag $arg" >&2; exit 1 ;;
+    *)
+      if [ -n "$PROJECT_PATH" ]; then
+        echo "error: unexpected extra argument $arg" >&2
+        exit 1
+      fi
+      PROJECT_PATH="$arg"
+      ;;
+  esac
+done
+
+if [ -z "$PROJECT_PATH" ]; then
+  echo "Usage: $0 /path/to/project [--claude] [--opencode] [--antigravity] [--uninstall]" >&2
   exit 1
 fi
 
-PROJECT_PATH="$1"
-MODE="install"
-if [ "${2:-}" = "--uninstall" ]; then
-  MODE="uninstall"
+# No harness flag given: default to all three, same as before this flag existed.
+if [ "$DO_CLAUDE" -eq 0 ] && [ "$DO_OPENCODE" -eq 0 ] && [ "$DO_ANTIGRAVITY" -eq 0 ]; then
+  DO_CLAUDE=1
+  DO_OPENCODE=1
+  DO_ANTIGRAVITY=1
 fi
 
 if [ ! -d "$PROJECT_PATH" ]; then
@@ -52,11 +84,6 @@ if [ ! -d "$PROJECT_PATH" ]; then
   exit 1
 fi
 PROJECT_PATH="$(cd "$PROJECT_PATH" && pwd)"
-
-TARGETS=(
-  "$PROJECT_PATH/.claude/skills"
-  "$PROJECT_PATH/.agents/skills"
-)
 
 link_all() {
   local target_dir="$1"
@@ -320,16 +347,22 @@ for pattern in (ws or []):
 
 if [ "$MODE" = "uninstall" ]; then
   echo "Removing skilled from $PROJECT_PATH:"
-  for dir in "${TARGETS[@]}"; do unlink_all "$dir"; done
-  remove_skills_json_entry "$PROJECT_PATH/.agents"
-  remove_opencode_config_entry "$PROJECT_PATH"
+  [ "$DO_CLAUDE" -eq 1 ] && unlink_all "$PROJECT_PATH/.claude/skills"
+  if [ "$DO_ANTIGRAVITY" -eq 1 ]; then
+    unlink_all "$PROJECT_PATH/.agents/skills"
+    remove_skills_json_entry "$PROJECT_PATH/.agents"
+  fi
+  [ "$DO_OPENCODE" -eq 1 ] && remove_opencode_config_entry "$PROJECT_PATH"
   exit 0
 fi
 
 echo "Installing skilled into $PROJECT_PATH:"
-for dir in "${TARGETS[@]}"; do link_all "$dir"; done
-write_skills_json "$PROJECT_PATH/.agents"
-write_opencode_config "$PROJECT_PATH"
+[ "$DO_CLAUDE" -eq 1 ] && link_all "$PROJECT_PATH/.claude/skills"
+if [ "$DO_ANTIGRAVITY" -eq 1 ]; then
+  link_all "$PROJECT_PATH/.agents/skills"
+  write_skills_json "$PROJECT_PATH/.agents"
+fi
+[ "$DO_OPENCODE" -eq 1 ] && write_opencode_config "$PROJECT_PATH"
 detect_nested_roots "$PROJECT_PATH"
 
 echo

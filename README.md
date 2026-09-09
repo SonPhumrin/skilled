@@ -48,10 +48,18 @@ cd ~/Documents/skilled
 ./install.sh /path/to/your-project
 ```
 
-That symlinks all 37 skills into `your-project/.claude/skills/` and `your-project/.agents/skills/`. Per-project, not global: a project you haven't pointed `install.sh` at never sees these skills, and running it against several projects is normal.
+With no flags, that installs for all three harnesses (see [Supported harnesses](#supported-harnesses)). Pass one or more of `--claude`, `--opencode`, `--antigravity` to install only for the ones a given project actually uses:
 
 ```bash
-./install.sh /path/to/your-project --uninstall   # remove them from that project
+./install.sh /path/to/your-project --claude              # Claude Code only
+./install.sh /path/to/your-project --claude --antigravity # skip OpenCode's opencode.json
+```
+
+Per-project, not global: a project you haven't pointed `install.sh` at never sees these skills, and running it against several projects is normal.
+
+```bash
+./install.sh /path/to/your-project --uninstall             # remove everything this wrote
+./install.sh /path/to/your-project --uninstall --opencode  # remove just the OpenCode entry
 ```
 
 Both are idempotent — safe to re-run after editing a skill, or after `git pull` picks up an update.
