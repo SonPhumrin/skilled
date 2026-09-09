@@ -37,4 +37,6 @@ If `CONTEXT.md` exists, read it first and phrase questions in its vocabulary. If
 
 ## Done
 
-The session ends when the frontier is empty: every branch visited, nothing silently assumed. Take no action on the plan until the user confirms shared understanding.
+The session ends when the frontier is empty: every branch visited, nothing silently assumed. When you reach that point, stop asking questions and post one final message instead: a plain-language summary of every decision made, visibly distinct from a question round (no ❓, nothing numbered to answer). Close it by asking for explicit confirmation, e.g. "Confirm this understanding before I act."
+
+Answering the last round of questions is not confirmation. Wait for an explicit yes on the summary itself before taking any action on the plan — including calling another skill, writing a spec, or touching a file.
