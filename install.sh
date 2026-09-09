@@ -198,6 +198,52 @@ remove_vendored() {
   echo "  $target_dir  (removed $removed)"
 }
 
+# --vendor, when both --claude and --antigravity are requested: .claude/skills
+# already has a real, vendored copy of every skill, so .agents/skills doesn't
+# need a second one -- it gets a relative in-project symlink back to
+# .claude/skills/<name> instead. Halves the vendored footprint (37 files
+# copied once, not twice) while still giving Antigravity's native
+# .agents/skills/ scan real entries to find. Only used when both harnesses
+# are requested; --antigravity alone in --vendor mode has nothing to link
+# from, so it still gets copy_all's real copies.
+link_from_claude() {
+  local target_dir="$1"
+  mkdir -p "$target_dir"
+  local linked=0
+  for skill_path in "$SKILLS_DIR"/*/; do
+    local name
+    name="$(basename "${skill_path%/}")"
+    ln -sfn "../../.claude/skills/$name" "$target_dir/$name"
+    linked=$((linked + 1))
+  done
+  echo "  $target_dir  ($linked skills, symlinked from .claude/skills)"
+}
+
+# Uninstall counterpart to link_from_claude: an .agents/skills entry in
+# --vendor mode is either a cross-link to .claude/skills (remove as a
+# symlink) or a standalone vendored copy (remove as a directory, same rule
+# as remove_vendored) -- checked per-entry since which one applies can
+# depend on flags a previous install used that this uninstall doesn't repeat.
+remove_agents_vendor() {
+  local target_dir="$1"
+  [ -d "$target_dir" ] || return 0
+  local removed=0
+  for skill_path in "$SKILLS_DIR"/*/; do
+    local name dest
+    name="$(basename "${skill_path%/}")"
+    dest="$target_dir/$name"
+    if [ -L "$dest" ]; then
+      case "$(readlink "$dest")" in
+        *".claude/skills/$name") rm "$dest"; removed=$((removed + 1)) ;;
+      esac
+    elif [ -d "$dest" ] && grep -q "^name: $name$" "$dest/SKILL.md" 2>/dev/null; then
+      rm -rf "$dest"
+      removed=$((removed + 1))
+    fi
+  done
+  echo "  $target_dir  (removed $removed)"
+}
+
 # Antigravity-specific: register a path in <project>/.agents/skills.json via
 # its documented { "entries": [{ "path": ... }] } schema. $2 is what to
 # register -- $SKILLS_DIR (absolute, symlink mode) or a project-relative
@@ -235,22 +281,30 @@ PYEOF
   echo "  $json_file  (registered $register_path)"
 }
 
+# Removes any entry matching one of the given candidate paths, not just one
+# computed from this uninstall's flags: an uninstall doesn't necessarily
+# repeat the exact flags the matching install used (e.g. `--vendor
+# --antigravity` alone, uninstalling from a project that was originally
+# `--vendor` with no flags = all three), so the registered path could be any
+# of the values this script has ever written. Only ever removes entries
+# matching one of those known values -- never touches an entry from
+# something else.
 remove_skills_json_entry() {
   local agents_dir="$1"
-  local register_path="$2"
+  shift
   local json_file="$agents_dir/skills.json"
   [ -f "$json_file" ] || return 0
   if ! command -v python3 >/dev/null 2>&1; then
     echo "  warning: python3 not found, left $json_file untouched" >&2
     return 0
   fi
-  python3 - "$json_file" "$register_path" <<'PYEOF'
+  python3 - "$json_file" "$@" <<'PYEOF'
 import json, os, sys
 
-json_file, register_path = sys.argv[1], sys.argv[2]
+json_file, candidates = sys.argv[1], set(sys.argv[2:])
 content = open(json_file).read().strip()
 data = json.loads(content) if content else {}
-entries = [e for e in data.get("entries", []) if e.get("path") != register_path]
+entries = [e for e in data.get("entries", []) if e.get("path") not in candidates]
 
 if entries:
     data["entries"] = entries
@@ -265,7 +319,7 @@ elif data.get("inherits") or (set(data.keys()) - {"entries"}):
 else:
     os.remove(json_file)
 PYEOF
-  echo "  $json_file  (unregistered $register_path)"
+  echo "  $json_file  (unregistered)"
 }
 
 # OpenCode-specific: register a path under "skills": {"paths": [...]} in the
@@ -321,9 +375,11 @@ PYEOF
   echo "  $target  (registered $register_path)"
 }
 
+# Same "remove any known candidate, not just one computed from current
+# flags" reasoning as remove_skills_json_entry above.
 remove_opencode_config_entry() {
   local project="$1"
-  local register_path="$2"
+  shift
   local target=""
   for candidate in "$project/opencode.json" "$project/.opencode/opencode.json"; do
     if [ -f "$candidate" ]; then
@@ -338,14 +394,14 @@ remove_opencode_config_entry() {
     return 0
   fi
 
-  python3 - "$target" "$register_path" <<'PYEOF'
+  python3 - "$target" "$@" <<'PYEOF'
 import json, os, sys
 
-json_file, register_path = sys.argv[1], sys.argv[2]
+json_file, candidates = sys.argv[1], set(sys.argv[2:])
 content = open(json_file).read().strip()
 data = json.loads(content) if content else {}
 skills = data.get("skills", {})
-paths = [p for p in skills.get("paths", []) if p != register_path]
+paths = [p for p in skills.get("paths", []) if p not in candidates]
 
 if paths:
     skills["paths"] = paths
@@ -364,7 +420,7 @@ if set(data.keys()) - {"$schema"}:
 else:
     os.remove(json_file)
 PYEOF
-  echo "  $target  (unregistered $register_path)"
+  echo "  $target  (unregistered)"
 }
 
 # Report nested roots this install did NOT reach: git submodules (a separate
@@ -441,12 +497,16 @@ for pattern in (ws or []):
 # absolute path in symlink mode, or a project-relative path in --vendor
 # mode (Antigravity resolves a path with no leading / or ~/ from the repo
 # root; OpenCode's own example config does the same for its native
-# .opencode/skills entry).
+# .opencode/skills entry). In --vendor mode both point at .claude/skills
+# when it exists -- real files, guaranteed to work regardless of whether a
+# scanner follows symlinked subdirectories -- falling back to .agents/skills
+# only when --claude wasn't requested at all.
 if [ "$VENDOR" -eq 1 ]; then
-  ANTIGRAVITY_PATH=".agents/skills"
   if [ "$DO_CLAUDE" -eq 1 ]; then
+    ANTIGRAVITY_PATH=".claude/skills"
     OPENCODE_PATH=".claude/skills"
   else
+    ANTIGRAVITY_PATH=".agents/skills"
     OPENCODE_PATH=".agents/skills"
   fi
 else
@@ -454,16 +514,22 @@ else
   OPENCODE_PATH="$SKILLS_DIR"
 fi
 
+# Every value this script has ever registered, across both modes and both
+# harness combinations -- used on --uninstall so it removes a stale entry
+# even when this uninstall's flags don't exactly match whatever flags the
+# original install used.
+KNOWN_PATHS=("$SKILLS_DIR" ".claude/skills" ".agents/skills")
+
 if [ "$MODE" = "uninstall" ]; then
   echo "Removing skilled from $PROJECT_PATH:"
   if [ "$DO_CLAUDE" -eq 1 ]; then
     if [ "$VENDOR" -eq 1 ]; then remove_vendored "$PROJECT_PATH/.claude/skills"; else unlink_all "$PROJECT_PATH/.claude/skills"; fi
   fi
   if [ "$DO_ANTIGRAVITY" -eq 1 ]; then
-    if [ "$VENDOR" -eq 1 ]; then remove_vendored "$PROJECT_PATH/.agents/skills"; else unlink_all "$PROJECT_PATH/.agents/skills"; fi
-    remove_skills_json_entry "$PROJECT_PATH/.agents" "$ANTIGRAVITY_PATH"
+    if [ "$VENDOR" -eq 1 ]; then remove_agents_vendor "$PROJECT_PATH/.agents/skills"; else unlink_all "$PROJECT_PATH/.agents/skills"; fi
+    remove_skills_json_entry "$PROJECT_PATH/.agents" "${KNOWN_PATHS[@]}"
   fi
-  [ "$DO_OPENCODE" -eq 1 ] && remove_opencode_config_entry "$PROJECT_PATH" "$OPENCODE_PATH"
+  [ "$DO_OPENCODE" -eq 1 ] && remove_opencode_config_entry "$PROJECT_PATH" "${KNOWN_PATHS[@]}"
   exit 0
 fi
 
@@ -472,7 +538,11 @@ if [ "$DO_CLAUDE" -eq 1 ]; then
   if [ "$VENDOR" -eq 1 ]; then copy_all "$PROJECT_PATH/.claude/skills"; else link_all "$PROJECT_PATH/.claude/skills"; fi
 fi
 if [ "$DO_ANTIGRAVITY" -eq 1 ]; then
-  if [ "$VENDOR" -eq 1 ]; then copy_all "$PROJECT_PATH/.agents/skills"; else link_all "$PROJECT_PATH/.agents/skills"; fi
+  if [ "$VENDOR" -eq 1 ]; then
+    if [ "$DO_CLAUDE" -eq 1 ]; then link_from_claude "$PROJECT_PATH/.agents/skills"; else copy_all "$PROJECT_PATH/.agents/skills"; fi
+  else
+    link_all "$PROJECT_PATH/.agents/skills"
+  fi
   write_skills_json "$PROJECT_PATH/.agents" "$ANTIGRAVITY_PATH"
 fi
 [ "$DO_OPENCODE" -eq 1 ] && write_opencode_config "$PROJECT_PATH" "$OPENCODE_PATH"

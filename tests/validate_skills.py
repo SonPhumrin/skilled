@@ -153,20 +153,27 @@ def check_single_source_of_truth():
             warn(f"'{term}' (owned by {owner}) is explained at length in: {others}")
 
 
-def _check_skill_entry(target, name, install_kind):
+def _check_skill_entry(project_path, target, name, install_kind):
     """One skill's entry under a .claude/skills or .agents/skills target
-    directory. Accepts either install.sh's two modes: a symlink resolving
-    back into this repo (default), or a real directory whose SKILL.md
-    frontmatter name matches and whose content is identical to the source
-    (--vendor). A vendored copy that exists but differs from the source is
-    flagged separately from a missing one, since that's staleness -- re-run
-    `--vendor`, not `install.sh` from scratch."""
+    directory. Accepts install.sh's modes: a symlink resolving back into
+    this repo (default), a symlink resolving to this project's own
+    .claude/skills/<name> (--vendor with both --claude and --antigravity,
+    where .agents/skills cross-links instead of duplicating the copy), or a
+    real directory whose SKILL.md frontmatter name matches and whose
+    content is identical to the source (--vendor otherwise). A vendored
+    copy that exists but differs from the source is flagged separately from
+    a missing one, since that's staleness -- re-run `--vendor`, not
+    `install.sh` from scratch."""
     entry = target / name
     if not entry.exists():
         warn(f"{target}/{name} missing (run ./install.sh {install_kind})")
         return
     if entry.is_symlink():
-        if entry.resolve() != (SKILLS_DIR / name).resolve():
+        valid_targets = {
+            (SKILLS_DIR / name).resolve(),
+            (project_path / ".claude" / "skills" / name).resolve(),
+        }
+        if entry.resolve() not in valid_targets:
             fail(f"{target}/{name} points somewhere else: {entry.resolve()}")
         return
     # Not a symlink: only valid if it's a --vendor copy of this exact skill.
@@ -197,9 +204,9 @@ def check_install_state(project_path):
             warn(f"{target} does not exist (run ./install.sh {project_path})")
             continue
         for name in skill_dirs:
-            _check_skill_entry(target, name, str(project_path))
+            _check_skill_entry(project_path, target, name, str(project_path))
 
-    valid_antigravity_paths = {str(SKILLS_DIR), ".agents/skills"}
+    valid_antigravity_paths = {str(SKILLS_DIR), ".agents/skills", ".claude/skills"}
     skills_json = project_path / ".agents" / "skills.json"
     if not skills_json.is_file():
         warn(f"{skills_json} does not exist (run ./install.sh {project_path}); "
