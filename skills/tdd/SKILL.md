@@ -35,4 +35,5 @@ When the shape of that interface is itself in question (how deep the module is, 
 
 - **Red before green.** Write the failing test first, then only enough code to pass it. Don't anticipate future tests or add speculative features.
 - **One slice at a time.** One seam, one test, one minimal implementation per cycle.
+- **The test is the oracle, not an obstacle.** When a test fails, the implementation is what changes. If the test itself looks wrong, stop and surface it — what it asserts, why you believe that is wrong, and what the correct behaviour is — then wait for the user's call. Editing the assertion to reach green verifies nothing, and a weakened test is worse than a red one.
 - **Refactoring is not part of the loop.** It belongs to the review stage (see the `review-diff` skill), not the red → green implementation cycle.

@@ -16,30 +16,35 @@ The 7 skills with no row in `upstream-map.md` are either wholly original or rewr
 
 ### 1. Get upstream's current state
 
+Clone into a fresh, unique directory (never a fixed path) so a concurrent or interrupted prior run can't collide with or clobber this one:
+
 ```bash
-git clone --depth 1 https://github.com/mattpocock/skills /tmp/skilled-upstream-check
+UPSTREAM_CHECKOUT="$(mktemp -d -t skilled-upstream-check.XXXXXX)"
+git clone --depth 1 https://github.com/mattpocock/skills "$UPSTREAM_CHECKOUT"
 ```
+
+Check the exit status. A nonzero exit (network failure, repo moved, etc.) means the check couldn't run at all — report that plainly and stop; never proceed as if upstream were unchanged.
 
 If a fuller history is needed for step 2 (a shallow clone only has the tip), instead:
 
 ```bash
-git clone https://github.com/mattpocock/skills /tmp/skilled-upstream-check
+git clone https://github.com/mattpocock/skills "$UPSTREAM_CHECKOUT"
 ```
 
 ### 2. For each tracked skill, check for drift
 
-Read [upstream-map.md](upstream-map.md) and for each row (skill name, upstream path, forked-at commit):
+Read [upstream-map.md](upstream-map.md) and for each row (skill name, upstream path, forked-at commit). Derive the skill's **containing directory** from the path (strip the trailing `/SKILL.md`) and watch that whole directory, not just the one file — upstream can add or change a supporting file (a `reference/*.md`, a script) without touching `SKILL.md` itself, and a file-only watch would call that "up to date" when it isn't:
 
 ```bash
-git -C /tmp/skilled-upstream-check log --oneline <forked-at-commit>..HEAD -- <path>
+git -C "$UPSTREAM_CHECKOUT" log --oneline <forked-at-commit>..HEAD -- <upstream-dir>
 ```
 
-Empty output means upstream hasn't touched that file since the recorded commit: up to date, nothing to do.
+Check the exit status before reading the output. A nonzero exit — most often the recorded `<forked-at-commit>` no longer being reachable, which can happen once a shallow clone's HEAD has moved past it — means drift is **unknown**, not "up to date": report it as unknown and suggest a fuller clone (the non-shallow command from step 1), never fold it silently into "nothing to do." Only a **zero exit with empty output** means upstream hasn't touched that directory since the recorded commit.
 
 Non-empty output means it changed. Get the diff:
 
 ```bash
-git -C /tmp/skilled-upstream-check diff <forked-at-commit> HEAD -- <path>
+git -C "$UPSTREAM_CHECKOUT" diff <forked-at-commit> HEAD -- <upstream-dir>
 ```
 
 ### 3. Report, don't apply
@@ -63,7 +68,7 @@ Update only that row's commit in `upstream-map.md` to the new upstream HEAD sha.
 
 ### 5. Clean up
 
-Remove `/tmp/skilled-upstream-check` when done.
+Remove `"$UPSTREAM_CHECKOUT"` when done.
 
 ## Adding provenance to a new port
 

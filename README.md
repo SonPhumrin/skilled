@@ -30,7 +30,7 @@ flowchart LR
     style Antigravity fill:#3b5bdb,color:#fff,stroke:#333
 ```
 
-`.claude/skills/` is Claude Code's native project scope. Antigravity reads `.agents/skills/` as its native project scope too, plus `.agents/skills.json` as a documented fallback, since its directory scan has been observed going stale on a symlinked folder. OpenCode has no project-level directory scan at all — its own docs say external-skill auto-load only covers the *global* `~/.claude/` and `~/.agents/`, never a project's — so `install.sh` registers this repo straight into the project's `opencode.json` instead. See [Supported harnesses](#supported-harnesses) for the harness-by-harness detail.
+`.claude/skills/` is Claude Code's native project scope. Antigravity reads `.agents/skills/` as its native project scope too, plus `.agents/skills.json` as a documented fallback, since its directory scan has been observed going stale on a symlinked folder. OpenCode (v1.18.30+) also discovers project `.claude/skills`, `.agents/skills`, and `.opencode/{skill,skills}` natively — but `install.sh` registers this repo into the project's `opencode.json` `"skills": {"paths": [...]}` entry too, as a belt-and-suspenders addition: it's still what makes skills visible for an `--opencode`-only symlink install, or a project that has disabled native discovery. See [Supported harnesses](#supported-harnesses) for the harness-by-harness detail.
 
 ### Use
 
@@ -80,6 +80,22 @@ python3 tests/validate_skills.py --project /path/to/your-project
 
 Then, inside that project, run `/skilled-setup` once. It writes `CONTEXT.md`, `ARCHITECTURE.md`, and the tracker config the workflow skills read. From there, `/skilled` is the thing to run when you're not sure what to reach for.
 
+### Optional: opencode worker-team delegation (Claude Code only)
+
+A separate, opt-in add-on: seven Claude Code slash commands (`/oc`, `/ocresearch`, `/ocplan`, `/ocverify`, `/ocreview`, `/ocbug`, `/ocimpl`) that delegate research, implementation, bug-hunting, and verification to an [opencode](https://opencode.ai) worker team, so Claude Code spends fewer of its own tokens on the heavy lifting. This is not an Agent Skill — it's Claude-Code-specific by design, so it's installed and toggled separately from the skills above.
+
+Prerequisite: the `opencode` CLI, already installed and configured with a working model/provider. `skilled` does not install or configure opencode itself, and ships no API keys or provider config. The bundled worker personas use DeepSeek for research/bug sweeps and GLM for implementation/verification/review; the active orchestrator may use the configured Astra -> Sol -> Claude -> GLM -> DeepSeek fallback chain. Configure provider credentials through environment variables or OpenCode's credential store rather than committing secrets to JSON.
+
+```bash
+./install.sh /path/to/your-project --opencode-delegation
+```
+
+This installs the slash commands into `.claude/commands/`, the opencode agent personas into `.opencode/agent/`, and merges a short policy section into that project's `CLAUDE.md`. It's **off by default** even after installing: each command checks `"skilledOpencodeDelegation"` in that project's `.claude/settings.json` before running, and the installer only ever writes `false` there. Flip it to `true` to turn the add-on on; flip it back to turn it off — no reinstall needed either way.
+
+```bash
+./install.sh /path/to/your-project --uninstall --opencode-delegation   # remove it entirely
+```
+
 ## Supported harnesses
 
 Every skill here is a plain `SKILL.md` under the open [Agent Skills](https://agentskills.io) standard, so nothing is Claude-specific by construction.
@@ -88,7 +104,7 @@ Every skill here is a plain `SKILL.md` under the open [Agent Skills](https://age
 | :--- | :--- |
 | Claude Code | `<project>/.claude/skills/` (native) |
 | Antigravity (CLI + IDE) | `<project>/.agents/skills/` (native) + `<project>/.agents/skills.json` (its own documented external-registration fallback, since the native scan can miss a symlinked folder) |
-| OpenCode | `<project>/opencode.json`'s `"skills": {"paths": [...]}` entry — its external-skill auto-load only scans the *global* `~/.claude/` and `~/.agents/`, per its own embedded docs, never a project's `.claude/skills` or `.agents/skills` |
+| OpenCode | `<project>/opencode.json`'s `"skills": {"paths": [...]}` entry, written as a belt-and-suspenders addition — current OpenCode (v1.18.30+) also discovers project `.claude/skills`, `.agents/skills`, and `.opencode/{skill,skills}` natively, but this registration still matters for `--opencode`-only symlink installs and for projects with native discovery disabled |
 
 **Two real gaps, not bugs**: `disable-model-invocation` (the field that keeps the 23 user-invoked skills out of the model's own reach) is a Claude Code extension. OpenCode and Antigravity both ignore unrecognized frontmatter keys per the open spec, so on those two harnesses every skill here is model-selectable, including the ones meant to be typed by hand. There is no portable "user-only" field in the standard today.
 
@@ -285,4 +301,3 @@ Read [CONVENTIONS.md](CONVENTIONS.md) first. The two rules that matter most: pic
 - **`docs/adr/`** - one record per non-obvious decision, so it does not get silently re-litigated.
 
 The seed templates live in [`skills/skilled-setup/`](skills/skilled-setup/).
-

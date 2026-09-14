@@ -20,7 +20,17 @@ Whatever the user said is the fixed point (a commit SHA, branch name, tag, `main
 
 Capture the diff command once: `git diff <fixed-point>...HEAD` (three-dot, so the comparison is against the merge-base). Also note the list of commits via `git log <fixed-point>..HEAD --oneline`.
 
-Before going further, confirm the fixed point resolves (`git rev-parse <fixed-point>`) and the diff is non-empty. A bad ref or empty diff should fail here, not inside two parallel sub-agents.
+**This is a committed-tree diff only — it never sees uncommitted work.** Check `git status --porcelain`. If it's non-empty, the fixed-point diff alone understates what's actually changed: the common single-ticket path is implement → review → commit, meaning at review time the real changes are still staged/unstaged/untracked, not yet on `HEAD`. When the working tree is dirty, union in:
+
+- `git diff HEAD` (unstaged changes against the last commit)
+- `git diff --cached` (staged changes)
+- `git ls-files --others --exclude-standard` (untracked files, read directly — they're in neither diff)
+
+into what gets reviewed, and say so explicitly in the final report's header: which of committed / staged / unstaged / untracked was included. A clean working tree needs none of this — the three-dot diff alone is already everything.
+
+Before going further, confirm the fixed point resolves (`git rev-parse <fixed-point>`) and that there's something to review (the three-dot diff is non-empty, or the working tree is dirty). A bad ref, or both an empty diff and a clean tree, should fail here, not inside two parallel sub-agents.
+
+Then list every changed test file. **Test changes are a finding until proven otherwise**: an agent reaching green by editing the assertion has verified nothing, and a weakened test is worse than a red one. For each changed test file, state whether the change adds coverage, or relaxes an assertion, deletes a case, or skips a test. A relaxation with no corresponding behaviour change elsewhere in the diff is a hard finding, not a judgement call. Report these before the two sub-agents run, so they can't be absorbed into an axis.
 
 ### 2. Identify the spec source
 
@@ -65,7 +75,7 @@ Each smell reads *what it is* → *how to fix*; match it against the diff:
 
 **Standards sub-agent prompt** should include:
 
-- The full diff command and commit list.
+- The full set of changes captured in step 1 (the diff command and commit list, plus the staged/unstaged/untracked union if the working tree was dirty).
 - The list of standards-source files you found in step 3, **plus the smell baseline from step 3** pasted in full (the sub-agent has no other access to it), plus the `ARCHITECTURE.md` Non-goals and any relevant ADR, quoted.
 - An instruction to consult the design skills where the diff warrants it: call the Skill tool with "code-craft" for anything newly added, a new job or queue consumer, or a new query or migration, and with "module-design" for a new or changed interface. One call per skill, only for the skills the diff actually touches.
 - The brief: "Report, per file/hunk where relevant, (a) every place the diff violates a documented standard: cite the standard (file + the rule); (b) any baseline smell you spot: name it and quote the hunk; and (c) anything the diff builds that `ARCHITECTURE.md` lists as a non-goal or that an accepted ADR decided against, quoting the line. Account for every changed file, so say which files you found nothing in. Distinguish hard violations from judgement calls: documented-standard breaches can be hard, but baseline smells are always judgement calls, and a documented repo standard overrides the baseline. Skip anything tooling enforces. Under 400 words."

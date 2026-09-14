@@ -30,6 +30,8 @@ Communication to and from subagents should be sparse. Communicate primarily thro
 
 7. Once all tickets are complete, call the Skill tool with "review-diff" against the PR branch. Fix all issues raised by the code review in a single **implementer subagent**.
 
-8. Mark the PR as ready for review.
+8. Run the full test suite and typecheck against the final merged PR branch state — not per-slice, per-ticket, or per-worktree. Per-ticket runs only proved each piece worked in isolation; this is the first point anything proves the *merged whole* still works. If the fix pass in step 7 produced another commit, re-run this step once more against the new HEAD before moving on. A failure here is not a review finding to note and move past — loop back to a fix and re-run until it's green.
 
-9. Clean up all **implementer subagent** worktrees.
+9. Mark the PR as ready for review.
+
+10. Clean up all **implementer subagent** worktrees.

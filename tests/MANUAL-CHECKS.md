@@ -33,12 +33,13 @@ Run `./install.sh /path/to/project` first, then check inside that project:
 
 - **Claude Code**: `/skills` lists all 37; the 23 user-invoked ones are absent
   from auto-invocation but reachable by typing `/<name>`.
-- **OpenCode**: has no project-level directory scan — its own embedded docs
-  say external-skill auto-load only covers the *global* `~/.claude/` and
-  `~/.agents/`, never a project's. `install.sh` instead writes a
-  `"skills": {"paths": [...]}` entry to the project's `opencode.json`
-  pointing straight at this repo's `skills/` dir; confirm that entry is
-  present and that `opencode.json` has no
+- **OpenCode**: current versions (v1.18.30+) discover project `.claude/skills`,
+  `.agents/skills`, and `.opencode/{skill,skills}` natively. `install.sh`
+  additionally writes a `"skills": {"paths": [...]}` entry to the project's
+  `opencode.json` pointing straight at this repo's `skills/` dir, as a
+  belt-and-suspenders addition that still matters for an `--opencode`-only
+  symlink install or a project with native discovery disabled; confirm that
+  entry is present and that `opencode.json` has no
   `"permission": {"skill": {...: "deny"}}` entry blocking one of them.
 - **Antigravity**: reads `.agents/skills/` at the project level, but its own
   logs have shown that scan going stale on a symlinked folder ("Slash

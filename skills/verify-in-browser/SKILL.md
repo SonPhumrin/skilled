@@ -21,7 +21,7 @@ Skip, saying why in one line, when: no acceptance criteria describe user-visible
 
 ### 3. Make sure there's something to test against
 
-- Confirm `agent-browser` is on `PATH` (`agent-browser --version`). If it's missing, install it fresh — `npm i -g agent-browser && agent-browser install` — never pin or vendor a copy, so this always runs whatever's current on npm regardless of machine.
+- Confirm `agent-browser` is on `PATH` (`agent-browser --version`). If it's missing, install the pinned version — `npm i -g agent-browser@0.37.1 && agent-browser install` — never an unpinned `npm i -g agent-browser`, which pulls whatever's newest on npm at install time and makes this skill's behavior depend on when it happens to run. Bump the pinned version deliberately (update it here, in this line, after checking `npm view agent-browser versions`) once a newer release has been verified against this skill's own process — not silently on every fresh install.
 - Confirm the app is reachable at its dev URL. If nothing is running, say what command starts it and stop there. Don't guess a port or silently start one.
 - Load `agent-browser skills get core` once for the command reference before issuing any commands. Never fall back to Playwright, Puppeteer, or another browser tool.
 

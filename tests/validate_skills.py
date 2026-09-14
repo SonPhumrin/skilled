@@ -3,8 +3,9 @@
 
 Cannot verify: whether a skill actually fires when it should (that needs a
 live agent session — see tests/MANUAL-CHECKS.md). This checks everything
-that's checkable from disk: frontmatter, naming, cross-references, and
-single-source-of-truth across the design skills.
+that's checkable from disk: frontmatter, naming, cross-references, the
+invocation invariant (nothing may call a user-invoked skill), spec-field
+portability, and single-source-of-truth across the design skills.
 
 Pass --project /path/to/repo to additionally check that repo's per-project
 install (written by install.sh) resolves back into this repo.
@@ -17,6 +18,9 @@ import sys
 REPO = pathlib.Path(__file__).resolve().parent.parent
 SKILLS_DIR = REPO / "skills"
 
+sys.path.insert(0, str(REPO))
+import installer_lib  # noqa: E402 -- needs REPO on sys.path first
+
 # Fields understood by at least one supported harness (Claude Code, OpenCode,
 # Antigravity). Anything outside this set is a typo, not a portable extension.
 KNOWN_FIELDS = {
@@ -25,7 +29,18 @@ KNOWN_FIELDS = {
     "disallowed-tools", "model", "effort", "context", "agent", "background",
     "hooks", "paths", "shell", "metadata", "license", "compatibility",
 }
-DESCRIPTION_CAP = 1536  # Claude Code truncates description+when_to_use here
+DESCRIPTION_CAP = 1024  # the portable Agent Skills spec limit (agentskills.io/specification)
+
+# The portable Agent Skills field set (agentskills.io). Everything else in
+# KNOWN_FIELDS is a harness extension, and costs portability: claude.ai and
+# the Skills API reject unknown keys outright.
+SPEC_FIELDS = {
+    "name", "description", "license", "compatibility", "metadata", "allowed-tools",
+}
+# The one extension this repo has deliberately adopted. It is the whole
+# mechanism behind user-invoked skills, and CONVENTIONS.md already accepts the
+# trade-off, so warning about it on all 23 of them would be pure noise.
+ACCEPTED_EXTENSIONS = {"disable-model-invocation"}
 
 errors = []
 warnings = []
@@ -90,7 +105,10 @@ def check_frontmatter():
             length = len(fields["description"]) + len(fields.get("when_to_use", ""))
             if length > DESCRIPTION_CAP:
                 warn(f"{d.name}: description(+when_to_use) is {length} chars, "
-                     f"over the {DESCRIPTION_CAP}-char Claude Code listing cap")
+                     f"over the {DESCRIPTION_CAP}-char portable Agent Skills spec limit "
+                     f"(agentskills.io/specification) -- still fine on Claude Code, "
+                     f"OpenCode and Antigravity, but risks truncation or rejection by "
+                     f"stricter portable tooling")
 
         unknown = set(fields) - KNOWN_FIELDS
         if unknown:
@@ -103,25 +121,75 @@ def check_frontmatter():
     return names, user_invoked
 
 
+SKILL_CALL_RE = r'Skill tool with ["`]([a-z0-9-]+)["`]'
+
+
 def check_cross_references(known_names):
-    """Every 'Skill tool with "x"' and bare /x mention must name a real skill."""
+    """Every 'Skill tool with "x"'/`x` and bare /x mention must name a real skill."""
     ignore = {"settings", "users", "skill", "name", "clear", "compact", "review"}
     for f in sorted(SKILLS_DIR.rglob("*.md")):
         s = f.read_text()
-        refs = set(re.findall(r'Skill tool with "([a-z0-9-]+)"', s))
+        refs = set(re.findall(SKILL_CALL_RE, s))
         refs |= set(re.findall(r'(?:^|[\s(`*])/([a-z][a-z0-9-]{3,})\b', s))
         for r in refs - known_names - ignore:
             fail(f"{f.relative_to(REPO)}: references unknown skill '{r}'")
 
 
-def check_no_relative_skill_links():
-    """Convention: reach other skills via the Skill tool, not ../other/FILE.md."""
+def check_invocation_invariant(user_invoked, known_names):
+    """A user-invoked skill may call a model-invoked skill. Nothing may call a
+    user-invoked skill: it carries no description, so the agent cannot fire it
+    and the call silently does nothing (CONVENTIONS.md)."""
+    for f in sorted(SKILLS_DIR.rglob("*.md")):
+        s = f.read_text()
+        for target in sorted(set(re.findall(SKILL_CALL_RE, s))):
+            if target in user_invoked:
+                fail(f"{f.relative_to(REPO)}: calls user-invoked skill "
+                     f"'{target}' -- nothing may call a user-invoked skill "
+                     f"(CONVENTIONS.md); write it as an instruction for the "
+                     f"user to run /{target} instead")
+
+
+def check_spec_compliance(names):
+    """Flag harness extensions beyond the one this repo has adopted, so the
+    portability cost is a visible choice rather than an accident. These skills
+    still load on Claude Code, OpenCode and Antigravity; they just cannot be
+    packaged for claude.ai or the Skills API, which reject unknown keys."""
+    for name, fields in sorted(names.items()):
+        extra = set(fields) - SPEC_FIELDS - ACCEPTED_EXTENSIONS
+        if extra:
+            warn(f"{name}: non-spec frontmatter field(s) {sorted(extra)} -- "
+                 f"these load on Claude Code, OpenCode and Antigravity, but "
+                 f"claude.ai / Skills API packaging rejects unknown keys "
+                 f"(see CONVENTIONS.md)")
+
+
+def check_no_relative_skill_links(known_names):
+    """Convention: reach other skills via the Skill tool, never by path.
+    Catches markdown links (../other/FILE.md) and inline code paths
+    (skills/other/FILE.md), which read as a pointer but never fire the skill."""
     for f in sorted(SKILLS_DIR.rglob("*.md")):
         if f.parent == SKILLS_DIR:
             continue
-        for m in re.finditer(r"\]\((\.\./[^)]+)\)", f.read_text()):
+        text = f.read_text()
+        for m in re.finditer(r"\]\((\.\./[^)]+)\)", text):
             fail(f"{f.relative_to(REPO)}: relative cross-skill link {m.group(1)!r} "
                  f"(should be a Skill tool call instead)")
+        # An inline path into another skill's directory. Upstream paths in
+        # upstream-map.md (skills/engineering/...) are a different namespace and
+        # are skipped, because their first segment is not a skill name here.
+        # The *containing* skill is the file's ancestor directly under
+        # skills/, not its immediate parent -- a nested file (e.g. under a
+        # reference/ or scripts/ subfolder) has a parent that's never the
+        # skill name itself, so comparing against f.parent.name would treat
+        # every nested file's legitimate self-reference as a cross-skill one.
+        containing_skill = f.relative_to(SKILLS_DIR).parts[0]
+        for m in re.finditer(
+            r"skills/([a-z0-9-]+)/(?:[A-Za-z0-9._-]+/)*[A-Za-z0-9._-]+\.md", text
+        ):
+            target = m.group(1)
+            if target in known_names and target != containing_skill:
+                fail(f"{f.relative_to(REPO)}: references {m.group(0)!r} by path "
+                     f"-- reach it with a Skill tool call instead")
 
 
 def check_single_source_of_truth():
@@ -178,11 +246,16 @@ def _check_skill_entry(project_path, target, name, install_kind):
         return
     # Not a symlink: only valid if it's a --vendor copy of this exact skill.
     skill_md = entry / "SKILL.md"
-    source_md = SKILLS_DIR / name / "SKILL.md"
+    source_dir = SKILLS_DIR / name
     if not skill_md.is_file() or f"name: {name}" not in skill_md.read_text():
         warn(f"{target}/{name} exists but is neither a symlink to this repo "
              f"nor a vendored copy of it")
-    elif skill_md.read_text() != source_md.read_text():
+        return
+    # Whole-tree fingerprint, not just SKILL.md -- a vendored skill can drift
+    # in a supporting file (reference/*.md, scripts/*.sh, dependency-cruiser
+    # templates, ...) while SKILL.md itself stays byte-identical, and a
+    # SKILL.md-only comparison would call that up to date.
+    if installer_lib.fingerprint_dir(entry) != installer_lib.fingerprint_dir(source_dir):
         warn(f"{target}/{name} is a vendored copy that's out of date "
              f"(re-run ./install.sh {install_kind} --vendor)")
 
@@ -197,9 +270,27 @@ def check_install_state(project_path):
     assume."""
     if project_path is None:
         return
+
+    manifest_file = project_path / installer_lib.MANIFEST_NAME
+    manifest_entries = None
+    if manifest_file.is_file():
+        try:
+            manifest_entries = installer_lib.load_manifest(str(project_path))["entries"]
+        except (json.JSONDecodeError, OSError):
+            manifest_entries = None  # corrupt manifest -- fall back below rather than crash
+
     targets = [project_path / ".claude" / "skills", project_path / ".agents" / "skills"]
     skill_dirs = {p.name for p in SKILLS_DIR.iterdir() if p.is_dir()}
     for target in targets:
+        # A manifest that exists but records nothing under this target means
+        # that harness was never requested at install time -- not installed
+        # is expected, not a finding. No manifest at all (pre-manifest
+        # install, or never installed) falls back to the old best-effort
+        # "does it exist" check for both targets.
+        if manifest_entries is not None:
+            rel_prefix = str(target.relative_to(project_path)) + "/"
+            if not any(k.startswith(rel_prefix) for k in manifest_entries):
+                continue
         if not target.is_dir():
             warn(f"{target} does not exist (run ./install.sh {project_path})")
             continue
@@ -222,10 +313,13 @@ def check_install_state(project_path):
                 warn(f"{skills_json} has no entry for this repo "
                      f"(run ./install.sh {project_path})")
 
-    # OpenCode's external-skill auto-load only scans ~/.claude/ and
-    # ~/.agents/ (global, per its own docs) -- never a project's
-    # .claude/skills or .agents/skills. Project-scoped skills need the
-    # "skills": {"paths": [...]} entry in opencode.json instead.
+    # Current OpenCode (v1.18.30+) also discovers project .claude/skills,
+    # .agents/skills, and .opencode/{skill,skills} natively -- this
+    # opencode.json "skills": {"paths": [...]} entry is a belt-and-suspenders
+    # addition on top of that, not the only mechanism: it still matters for
+    # --opencode-only symlink installs and for projects that have disabled
+    # native discovery, and it's what install.sh writes either way, so it's
+    # still worth checking for.
     valid_opencode_paths = {str(SKILLS_DIR), ".claude/skills", ".agents/skills"}
     oc_json = project_path / "opencode.json"
     oc_jsonc = project_path / "opencode.jsonc"
@@ -237,8 +331,9 @@ def check_install_state(project_path):
         oc_target = oc_json if oc_json.is_file() else oc_nested
         if not oc_target.is_file():
             warn(f"{oc_json} does not exist (run ./install.sh {project_path}); "
-                 f"OpenCode has no project-level auto-scan, so it won't see "
-                 f"these skills without it")
+                 f"OpenCode's native project discovery may already see these "
+                 f"skills, but this registration is still recommended as a "
+                 f"belt-and-suspenders fallback")
         else:
             try:
                 data = json.loads(oc_target.read_text() or "{}")
@@ -270,7 +365,9 @@ def main():
     names, user_invoked = check_frontmatter()
     known = set(names)
     check_cross_references(known)
-    check_no_relative_skill_links()
+    check_invocation_invariant(user_invoked, known)
+    check_spec_compliance(names)
+    check_no_relative_skill_links(known)
     check_single_source_of_truth()
     check_reserved_and_collisions()
     check_install_state(project_path)

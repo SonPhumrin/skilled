@@ -58,11 +58,11 @@ Copy [`dependency-cruiser.config.cjs`](./dependency-cruiser.config.cjs) to the r
 
 ### 4. Wire it into the checks
 
-- Add a `lint:boundaries` script: `depcruise <packages-root>` (or `depcruise src`).
+- Add a `lint:boundaries` script that scans the root **containing both the packages and the app code that imports them** — not the packages root alone. Rule 1 (entry-point boundary) exists specifically to police app code reaching into a package's internals; a scan rooted at `<packages-root>` never visits any file outside it, so that violation class is invisible no matter how correct the config is. When `PACKAGES_ROOT` is `src/packages`, scan `depcruise src`; when it's `packages` at the repo root, scan from the repo root (excluding `node_modules` and build output, which dependency-cruiser does by default). Confirm with the user that the chosen scan root actually contains the app code that imports these packages — if app code lives somewhere depcruise's default excludes wouldn't reach, widen the scan root rather than narrowing the rule.
 - Fold it into the repo's umbrella check command, the one that already runs typecheck (e.g. a `check` / `ci` / `validate` script). Do **not** touch `tsconfig` or add path aliases.
 - If there is no umbrella script, add `lint:boundaries` and tell the user to include it in CI.
 
-**Done when:** `lint:boundaries` exists and runs as part of the same command as typecheck.
+**Done when:** `lint:boundaries` exists, scans a root that includes both the packages and their app-code callers, and runs as part of the same command as typecheck.
 
 ### 5. Scaffold the example package
 
@@ -83,6 +83,10 @@ This is the completion criterion for the whole skill: a config that doesn't fail
 1. Run `lint:boundaries`. It must **pass** on the clean example.
 2. Temporarily add a deep import to `tests/example.test.ts` (e.g. `import { thing } from "../lib/impl"`). Run `lint:boundaries` again; it must **fail** with `tests-through-entrypoints`.
 3. Revert the deep import. Run once more, and it must **pass**.
+4. Now prove the entry-point boundary itself, not just the tests-through-entrypoints rule: temporarily add a deep import from *outside* the example package into its `lib/` internals — e.g. a scratch file at the scan root (such as `<repo-root or src>/scratch-boundary-check.ts`) containing `import { thing } from "<packages-root>/example/lib/impl"`. Run `lint:boundaries`; it must **fail** with the entry-point-boundary rule. This is the violation class step 4's scan-root choice exists to catch — if this step passes instead of failing, the scan root doesn't actually cover the app code the rule is meant to police, and step 4 needs revisiting before this skill is done.
+5. Delete the scratch file. Run once more, and it must **pass**.
+
+**Done when:** you have observed pass → fail → pass for both violation classes (tests-through-entrypoints in steps 1-3, entry-point-boundary in steps 3-5). If either fail step does not actually fail, the rules — or the scan root — are not wired correctly, so fix before finishing.
 
 **Done when:** you have observed a pass, then a fail on the deep import, then a pass again. If step 2 does not fail, the rules are not wired correctly, so fix before finishing.
 

@@ -12,9 +12,11 @@ Sets up a PreToolUse hook that intercepts and blocks dangerous git commands befo
 
 - `git push` (all variants including `--force`)
 - `git reset --hard`
-- `git clean -f` / `git clean -fd`
-- `git branch -D`
-- `git checkout .` / `git restore .`
+- `git clean` with any force flag, any combination/order (`-f`, `-fd`, `-df`, `-fdx`, `--force`, ...)
+- `git branch -D` / `git branch --delete --force`
+- `git checkout .` / `git restore .` (but not `git checkout -p .` / `--patch`, which prompts per-hunk rather than discarding silently)
+
+The script tokenizes each `&&`/`;`/`|`-separated segment of the command and matches on the actual git subcommand and its flags — not a raw substring of the whole command line — so `git -C . push`, chained commands, and unusual flag orderings are still caught, and text that merely *mentions* one of these phrases (e.g. inside a commit message) is not a false positive. A payload the hook can't parse is blocked rather than silently allowed.
 
 When blocked, Claude sees a message telling it that it does not have authority to access these commands.
 
