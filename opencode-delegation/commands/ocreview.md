@@ -1,5 +1,5 @@
 ---
-description: Deep bug review via opencode (GLM) - confirms/refutes findings, finds subtle bugs - saves Claude tokens
+description: Deep bug review via opencode (deepseek) - confirms/refutes findings, finds subtle bugs - saves Claude tokens
 allowed-tools: Bash(opencode run:*)
 ---
 
