@@ -48,6 +48,10 @@ jobs:
           python-version: "3.12"
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter unskilled typecheck
+      # Puts codex on PATH, so test/codex-e2e.test.ts runs the real app-server (against a fake model).
+      - name: Install Codex for the end-to-end test
+        if: runner.os == 'Linux'
+        run: npm install -g @openai/codex@0.156.1
       - run: pnpm --filter unskilled test
       - run: pnpm --filter unskilled build
       - name: Package (unpacked)

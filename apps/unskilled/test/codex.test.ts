@@ -2,8 +2,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import type { PermissionDecision, ThreadEvent } from "../src/shared/types";
-import { codexDecision, codexPolicy, createCodexDriver } from "../src/main/agents/codex";
-import type { TurnInput } from "../src/main/agents/types";
+import { z } from "zod";
+import { codexDecision, codexPolicy, codexToolConfig, createCodexDriver } from "../src/main/agents/codex";
+import type { HarnessTool, TurnInput } from "../src/main/agents/types";
+import { startToolServer } from "../src/main/mcp-http";
 import { closeAfter } from "./helpers";
 
 const MOCK = join(__dirname, "fixtures", "mock-codex-app-server.mjs");
@@ -100,5 +102,74 @@ describe("Codex policy mapping", () => {
     expect(codexPolicy("full")).toEqual({ approvalPolicy: "never", sandbox: "danger-full-access" });
     expect(codexDecision("allow-always")).toBe("acceptForSession");
     expect(codexDecision("deny")).toBe("decline");
+  });
+});
+
+describe("Codex with the harness's tools", () => {
+  const evalTool: HarnessTool = {
+    name: "browser_eval",
+    description: "Evaluate JS",
+    input: { expression: z.string() },
+    autoAllow: false,
+    run: async (a) => ({ text: `evaluated ${(a as { expression: string }).expression}` }),
+  };
+
+  async function withServer() {
+    const server = await startToolServer(() => [evalTool]);
+    closeAfter(() => void server.close());
+    const d = createCodexDriver({ command: process.execPath, args: [MOCK], clientVersion: "test", toolServer: async () => server });
+    closeAfter(() => d.dispose?.());
+    return d;
+  }
+
+  it("attaches the tool server, asks in Ask mode, and runs the tool", async () => {
+    const d = await withServer();
+    const t = turn("browser", { tools: [evalTool] });
+    await d.runTurn(t.input);
+    expect(t.asked).toEqual(["expression: 1+1"]);
+    expect(t.events.slice(0, 2)).toEqual([
+      { kind: "tool-use", toolUseId: "t1", name: "browser_eval", summary: '{"expression":"1+1"}' },
+      { kind: "tool-result", toolUseId: "t1", isError: false, summary: "evaluated 1+1" },
+    ]);
+  });
+
+  it("doesn't ask outside Ask mode, and reports a declined call", async () => {
+    const d = await withServer();
+    const auto = turn("browser", { tools: [evalTool], permissionMode: "auto-edit" });
+    await d.runTurn(auto.input);
+    expect(auto.asked).toEqual([]);
+    const denied = turn("browser", { tools: [evalTool], requestPermission: async () => "deny" });
+    await d.runTurn(denied.input);
+    expect(denied.events[1]).toMatchObject({ kind: "tool-result", isError: true, summary: "user rejected MCP tool call" });
+  });
+
+  it("reattaches a loaded thread once the tools appear", async () => {
+    const d = await withServer();
+    const first = turn("browser");
+    await d.runTurn(first.input);
+    expect(first.events[0]).toMatchObject({ kind: "assistant-text", text: "no tools" });
+    const second = turn("browser", { sessionId: first.sessions[0]!, tools: [evalTool], permissionMode: "full" });
+    await d.runTurn(second.input);
+    expect(second.sessions).toEqual(first.sessions);
+    expect(second.events[1]).toMatchObject({ kind: "tool-result", summary: "evaluated 1+1" });
+  });
+});
+
+describe("codexToolConfig", () => {
+  it("auto-approves safe tools and prompts for the rest only in Ask mode", () => {
+    const safe = { name: "browser_snapshot", autoAllow: true } as HarnessTool;
+    const risky = { name: "browser_eval", autoAllow: false } as HarnessTool;
+    const server = { url: "http://127.0.0.1:1/mcp", token: "tok" };
+    expect(codexToolConfig(server, [safe, risky], "ask")).toEqual({
+      mcp_servers: {
+        unskilled: {
+          url: server.url,
+          http_headers: { Authorization: "Bearer tok" },
+          default_tools_approval_mode: "approve",
+          tools: { browser_eval: { approval_mode: "prompt" } },
+        },
+      },
+    });
+    expect((codexToolConfig(server, [safe, risky], "full").mcp_servers as Record<string, { tools: object }>).unskilled!.tools).toEqual({});
   });
 });

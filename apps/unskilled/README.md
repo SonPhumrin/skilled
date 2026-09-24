@@ -33,7 +33,7 @@ The Terminal tab (⌃\`) is a real shell in the project folder: `$SHELL` on macO
 Every thread runs one agent, picked in the header. Switching agents starts a fresh conversation, because sessions don't carry across agents.
 
 - **Claude** (always there) uses the Claude Agent SDK. It gets skilled's model-invoked skills as a plugin, plus the browser tools.
-- **Codex** appears when `codex` is on your PATH. It runs as `codex app-server`, one process for all threads, and resumes threads from Codex's own history. It uses your Codex login. skilled's model-invoked skills reach it as an extra skills root, and Ask / Auto-edit / Full map onto Codex's approval policy and sandbox (`untrusted` / `on-request` / `never`, with `workspace-write`, or full access in Full).
+- **Codex** appears when `codex` is on your PATH. It runs as `codex app-server`, one process for all threads, and resumes threads from Codex's own history. It uses your Codex login. skilled's model-invoked skills reach it as an extra skills root, and Ask / Auto-edit / Full map onto Codex's approval policy and sandbox (`untrusted` / `on-request` / `never`, with `workspace-write`, or full access in Full). Once you open the browser tab, the thread gets the browser tools as an MCP server in its config. A thread that's already running is reloaded so it picks them up.
 - **Any agent that speaks ACP** (the [Agent Client Protocol](https://agentclientprotocol.com)) goes through one generic driver. Each thread keeps its agent process alive between turns and resumes the stored session after a restart when the agent supports it. Models come from the agent's own `model` config option.
   - **DeepSeek** appears when `dsh` ([deepseek-harness](https://github.com/deepseek-ai/deepseek-harness), `npm i -g @deepseek-ai/dsh`) is on your PATH. It runs as `dsh --profile acp` and uses your dsh configuration and `DEEPSEEK_API_KEY`. skilled's model-invoked skills reach it through `DSH_BUNDLED_SKILL_DIR`, so nothing is written into your project.
   - **Cursor** appears when `cursor-agent` is on your PATH.
@@ -45,7 +45,7 @@ Every thread runs one agent, picked in the header. Switching agents starts a fre
 
   The permission modes carry over. Ask asks for every tool call. Auto-edit allows reads and file edits without asking. Full allows everything.
 
-The `/` menu works the same for every agent, since the app composes the skill's text itself. The browser tools reach ACP agents too, if the agent accepts HTTP MCP servers (deepseek-harness does). The app serves them from a local MCP server on 127.0.0.1, which only accepts requests carrying a per-run token.
+The `/` menu works the same for every agent, since the app composes the skill's text itself. The browser tools reach Codex and ACP agents too (for ACP, if the agent accepts HTTP MCP servers; deepseek-harness does). The app serves them from a local MCP server on 127.0.0.1, which only accepts requests carrying a per-run token.
 
 ## The built-in browser
 
@@ -94,7 +94,7 @@ Builds are unsigned until these repository secrets exist. Each OS signs only whe
 
 The macOS build uses the hardened runtime with the entitlements in `build/entitlements.mac.plist`: JIT for V8 and the bundled Claude Code binary, and library validation off for node-pty.
 
-CI runs typecheck, tests, packaging, and a smoke test of the packaged app on all three OSes. The smoke test (`--smoke`) checks that the window loads, the preload bridge works, the skills catalog and settings answer, the bundled Claude Code binary runs, the browser tools can open a page, type, click, pick an element, and read the console, and a real shell answers through node-pty. Set `UNSKILLED_SMOKE_SCREENSHOT=<file.png>` to also save a screenshot of the window.
+CI runs typecheck, tests, packaging, and a smoke test of the packaged app on all three OSes. The smoke test (`--smoke`) checks that the window loads, the preload bridge works, the skills catalog and settings answer, the bundled Claude Code binary runs, the browser tools can open a page, type, click, pick an element, and read the console, and a real shell answers through node-pty. Set `UNSKILLED_SMOKE_SCREENSHOT=<file.png>` to also save a screenshot of the window. On Linux, CI also installs Codex, so `test/codex-e2e.test.ts` runs the real `codex app-server` against a fake model: it adds the browser tools mid-thread, then approves and runs one.
 
 ## Layout
 
@@ -122,5 +122,5 @@ Electron 44 (the same Chromium on every OS, which the built-in browser needs), R
 
 ## Roadmap
 
-- **Milestone 2:** ~~the built-in browser pane~~, ~~the generic ACP driver~~, and ~~browser tools for ACP agents~~, ~~the element picker~~, ~~Codex~~, and ~~the terminal tab~~ (done). Still to come: browser tools for Codex.
-- **Milestone 3:** ~~settings~~, ~~a per-thread view of token usage~~, ~~an app icon~~, ~~auto-update~~, ~~signing and notarization~~ (done). Still to come: browser tools for Codex.
+- **Milestone 2:** ~~the built-in browser pane~~, ~~the generic ACP driver~~, ~~browser tools for ACP agents and Codex~~, ~~the element picker~~, ~~Codex~~, and ~~the terminal tab~~ (done).
+- **Milestone 3:** ~~settings~~, ~~a per-thread view of token usage~~, ~~an app icon~~, ~~auto-update~~, ~~signing and notarization~~ (done).

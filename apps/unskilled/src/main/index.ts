@@ -142,14 +142,22 @@ async function main(): Promise<void> {
   for (const p of problems) console.warn(p);
   const modelSkillsDir = join(userData, "skilled-skills");
   const enabledTools = () => (browser.enabled ? tools : []);
-  // Started on first use, for ACP agents that take tools over MCP.
+  // Started on first use, for Codex and ACP agents, which take tools over MCP.
   let toolServer: Promise<ToolServer> | null = null;
   const getToolServer = () => (toolServer ??= startToolServer(enabledTools));
   const drivers = [
     driver,
-    // Codex when it's installed; it registers the same model-invoked skills as an extra skills root.
+    // Codex when it's installed: the same model-invoked skills as an extra skills root, and the browser tools over MCP.
     ...(onPath("codex")
-      ? [createCodexDriver({ command: "codex", args: ["app-server"], clientVersion: app.getVersion(), skillsDir: () => ensureModelSkillsDir(catalog, modelSkillsDir) })]
+      ? [
+          createCodexDriver({
+            command: "codex",
+            args: ["app-server"],
+            clientVersion: app.getVersion(),
+            skillsDir: () => ensureModelSkillsDir(catalog, modelSkillsDir),
+            toolServer: getToolServer,
+          }),
+        ]
       : []),
     ...acpAgents.map((config) =>
       createAcpDriver(config, {

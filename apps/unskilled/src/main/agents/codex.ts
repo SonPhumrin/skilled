@@ -1,7 +1,7 @@
 import type { ModelOption, PermissionDecision, PermissionMode } from "../../shared/types";
 import { RpcError, StdioRpc } from "./rpc";
-import { summarizeToolResult } from "./summarize";
-import type { AgentDriver, TurnInput } from "./types";
+import { summarizeToolInput, summarizeToolResult } from "./summarize";
+import type { AgentDriver, HarnessTool, TurnInput } from "./types";
 
 // The slices of Codex's app-server protocol (`codex app-server generate-ts`) this driver uses.
 type ThreadItem =
@@ -9,7 +9,16 @@ type ThreadItem =
   | { type: "reasoning"; id: string; summary: string[]; content: string[] }
   | { type: "commandExecution"; id: string; command: string; status: string; aggregatedOutput: string | null; exitCode: number | null }
   | { type: "fileChange"; id: string; changes: { path: string; kind: unknown }[]; status: string }
-  | { type: "mcpToolCall"; id: string; server: string; tool: string; status: string; error?: { message: string } | null }
+  | {
+      type: "mcpToolCall";
+      id: string;
+      server: string;
+      tool: string;
+      status: string;
+      arguments?: unknown;
+      result?: { content: unknown } | null;
+      error?: { message: string } | null;
+    }
   | { type: "webSearch"; id: string; query?: string }
   | { type: string; id: string };
 interface Turn {
@@ -30,7 +39,12 @@ export interface CodexConfig {
   clientVersion: string;
   /** skilled's model-invoked skills, registered as an extra skills root. */
   skillsDir?: () => string;
+  /** The harness's tools over HTTP MCP (the browser pane's), attached per thread. */
+  toolServer?: () => Promise<{ url: string; token: string }>;
 }
+
+/** The MCP server name the harness's tools go by, in Codex's config and its tool calls. */
+export const CODEX_TOOL_SERVER = "unskilled";
 
 export const CODEX_DEFAULT_MODEL = "default";
 
@@ -48,6 +62,32 @@ export function codexPolicy(mode: PermissionMode): { approvalPolicy: string; san
 
 export function codexDecision(d: PermissionDecision): "accept" | "acceptForSession" | "decline" {
   return d === "allow-always" ? "acceptForSession" : d === "allow-once" ? "accept" : "decline";
+}
+
+/**
+ * The thread config that attaches the harness's tools: Codex's
+ * `mcp_servers` entry for the local tool server. Safe tools run without
+ * asking; the rest ask in Ask mode, through an MCP elicitation.
+ */
+export function codexToolConfig(server: { url: string; token: string }, tools: HarnessTool[], mode: PermissionMode): Record<string, unknown> {
+  const ask = tools.filter((t) => !t.autoAllow && mode === "ask");
+  return {
+    mcp_servers: {
+      [CODEX_TOOL_SERVER]: {
+        url: server.url,
+        http_headers: { Authorization: `Bearer ${server.token}` },
+        default_tools_approval_mode: "approve",
+        tools: Object.fromEntries(ask.map((t) => [t.name, { approval_mode: "prompt" }])),
+      },
+    },
+  };
+}
+
+interface Elicitation {
+  threadId: string;
+  serverName: string;
+  message?: string;
+  _meta?: { codex_approval_kind?: string; tool_params_display?: { name: string; display_name?: string; value: unknown }[] } | null;
 }
 
 interface TurnState {
@@ -70,6 +110,10 @@ export function createCodexDriver(config: CodexConfig): AgentDriver {
   let ready: Promise<void> | null = null;
   let models: ModelOption[] = [];
   const turns = new Map<string, TurnState>(); // by Codex thread id
+  /** Threads loaded in the running app-server, and whether they have the harness's tools. */
+  const loaded = new Map<string, boolean>();
+  /** MCP tools the user chose "always allow" for, by thread. */
+  const alwaysAllowed = new Map<string, Set<string>>();
 
   const onNotification = (method: string, params: unknown) => {
     const p = params as { threadId?: string; turnId?: string; itemId?: string; delta?: string; item?: ThreadItem; turn?: Turn };
@@ -138,8 +182,9 @@ export function createCodexDriver(config: CodexConfig): AgentDriver {
       const c = item as { aggregatedOutput: string | null; exitCode: number | null };
       summary = summarizeToolResult(c.aggregatedOutput ?? "") || (c.exitCode !== null ? `exit ${c.exitCode}` : summary);
     } else if (item.type === "mcpToolCall") {
-      const m = item as { error?: { message: string } | null };
+      const m = item as { error?: { message: string } | null; result?: { content: unknown } | null };
       if (m.error) summary = m.error.message;
+      else if (m.result) summary = summarizeToolResult(m.result.content) || summary;
     }
     t.input.onEvent({ kind: "tool-result", toolUseId: item.id, isError: failed, summary });
   };
@@ -157,7 +202,29 @@ export function createCodexDriver(config: CodexConfig): AgentDriver {
       });
       return { decision: codexDecision(decision) };
     }
+    if (method === "mcpServer/elicitation/request") return onElicitation(params as Elicitation);
     throw new RpcError(-32601, `${method} is not supported by this client`);
+  };
+
+  // Codex asks before an MCP tool call as a form elicitation tagged
+  // mcp_tool_call. Other elicitations (an MCP server asking the user for
+  // input) have no UI here, so they're declined.
+  const onElicitation = async (p: Elicitation): Promise<{ action: "accept" | "decline"; content: null }> => {
+    const t = turns.get(p.threadId);
+    if (!t || p._meta?.codex_approval_kind !== "mcp_tool_call") return { action: "decline", content: null };
+    const tool = /tool "([^"]+)"/.exec(p.message ?? "")?.[1] ?? "a tool";
+    const allowed = alwaysAllowed.get(p.threadId);
+    if (allowed?.has(`${p.serverName}/${tool}`)) return { action: "accept", content: null };
+    const decision = await t.input.requestPermission({
+      toolName: p.serverName === CODEX_TOOL_SERVER ? tool : `${p.serverName} · ${tool}`,
+      summary: (p._meta.tool_params_display ?? []).map((d) => `${d.display_name ?? d.name}: ${String(d.value)}`).join(", ") || tool,
+      canAlwaysAllow: true,
+    });
+    if (decision === "allow-always") {
+      if (!allowed) alwaysAllowed.set(p.threadId, new Set([`${p.serverName}/${tool}`]));
+      else allowed.add(`${p.serverName}/${tool}`);
+    }
+    return { action: decision === "deny" ? "decline" : "accept", content: null };
   };
 
   const start = (cwd: string): Promise<void> => {
@@ -169,6 +236,7 @@ export function createCodexDriver(config: CodexConfig): AgentDriver {
         for (const t of turns.values()) t.done({ id: t.turnId ?? "", status: "failed", error: { message: "Codex exited." }, durationMs: null });
         rpc = null;
         ready = null;
+        loaded.clear();
       },
     });
     const conn = rpc;
@@ -205,14 +273,24 @@ export function createCodexDriver(config: CodexConfig): AgentDriver {
       try {
         await start(input.cwd);
         const conn = rpc!;
+        const withTools = input.tools.length > 0 && Boolean(config.toolServer);
+        const threadConfig = withTools ? codexToolConfig(await config.toolServer!(), input.tools, input.permissionMode) : undefined;
         threadId = "";
         if (input.sessionId) {
+          // Tools became available mid-conversation (the user opened the
+          // browser): unload the thread so the resume below loads it again
+          // with the tool server in its config.
+          if (withTools && loaded.get(input.sessionId) === false) {
+            await conn.request("thread/unsubscribe", { threadId: input.sessionId }).catch(() => {});
+            loaded.delete(input.sessionId);
+          }
           try {
             const res = await conn.request<{ thread: { id: string } }>("thread/resume", {
               threadId: input.sessionId,
               cwd: input.cwd,
               model,
               ...policy,
+              config: threadConfig,
               excludeTurns: true,
             });
             threadId = res.thread.id;
@@ -221,9 +299,11 @@ export function createCodexDriver(config: CodexConfig): AgentDriver {
           }
         }
         if (!threadId) {
-          const res = await conn.request<{ thread: { id: string } }>("thread/start", { cwd: input.cwd, model, ...policy });
+          const res = await conn.request<{ thread: { id: string } }>("thread/start", { cwd: input.cwd, model, ...policy, config: threadConfig });
           threadId = res.thread.id;
         }
+        // A resume of a thread that's already loaded keeps its tools, so only a first load decides.
+        if (!loaded.has(threadId)) loaded.set(threadId, withTools);
         input.onSession(threadId);
       } catch (err) {
         input.onEvent({ kind: "error", message: `Codex failed to start: ${err instanceof Error ? err.message : String(err)}` });
@@ -271,6 +351,7 @@ export function createCodexDriver(config: CodexConfig): AgentDriver {
       rpc?.close();
       rpc = null;
       ready = null;
+      loaded.clear();
     },
   };
 }
@@ -282,8 +363,10 @@ function toolFor(item: ThreadItem): { name: string; summary: string } | null {
     case "fileChange":
       return { name: "Edit", summary: (item as { changes: { path: string }[] }).changes.map((c) => c.path).join(", ") };
     case "mcpToolCall": {
-      const m = item as { server: string; tool: string };
-      return { name: `${m.server} · ${m.tool}`, summary: "" };
+      const m = item as { server: string; tool: string; arguments?: unknown };
+      const args = m.arguments && typeof m.arguments === "object" ? (m.arguments as Record<string, unknown>) : {};
+      // The harness's own tools read as themselves, like Claude's browser_* calls.
+      return { name: m.server === CODEX_TOOL_SERVER ? m.tool : `${m.server} · ${m.tool}`, summary: summarizeToolInput(m.tool, args) };
     }
     case "webSearch":
       return { name: "Search", summary: (item as { query?: string }).query ?? "" };

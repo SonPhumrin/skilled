@@ -1,8 +1,14 @@
 // A tiny stand-in for `codex app-server` for tests. The prompt picks the scenario:
 //   "tool" - asks approval for a command, then reports it
 //   "slow" - streams until turn/interrupt
+//   "browser" - calls browser_eval on the thread's "unskilled" MCP server,
+//              asking first when its config says to, as Codex does
 //   other  - replies "Hi, <prompt>" in two deltas
+// Like Codex, a thread keeps the config it was loaded with until it is
+// unsubscribed (unloaded); resuming a loaded thread doesn't change it.
 import { createInterface } from "node:readline";
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 
 const send = (msg) => process.stdout.write(JSON.stringify(msg) + "\n");
 const notify = (method, params) => send({ method, params });
@@ -17,6 +23,17 @@ const ask = (method, params) =>
 const threads = new Set(["known-thread"]);
 let interrupted = false;
 let extraRoots = [];
+const configs = new Map(); // loaded thread id -> its config
+
+async function callTool(server, name, args) {
+  const client = new Client({ name: "mock-codex", version: "0" });
+  await client.connect(new StreamableHTTPClientTransport(new URL(server.url), { requestInit: { headers: server.http_headers } }));
+  try {
+    return await client.callTool({ name, arguments: args });
+  } finally {
+    await client.close();
+  }
+}
 
 createInterface({ input: process.stdin }).on("line", async (line) => {
   const msg = JSON.parse(line);
@@ -39,11 +56,16 @@ createInterface({ input: process.stdin }).on("line", async (line) => {
     case "thread/start": {
       const tid = `thread-${threads.size}`;
       threads.add(tid);
+      configs.set(tid, params.config ?? null);
       return send({ id, result: { thread: { id: tid } } });
     }
     case "thread/resume":
       if (!threads.has(params.threadId)) return send({ id, error: { code: -32600, message: "no such thread" } });
+      if (!configs.has(params.threadId)) configs.set(params.threadId, params.config ?? null);
       return send({ id, result: { thread: { id: params.threadId } } });
+    case "thread/unsubscribe":
+      configs.delete(params.threadId);
+      return send({ id, result: { status: "unsubscribed" } });
     case "turn/interrupt":
       interrupted = true;
       return send({ id, result: {} });
@@ -65,6 +87,36 @@ createInterface({ input: process.stdin }).on("line", async (line) => {
           await new Promise((r) => setTimeout(r, 20));
         }
         return done("interrupted");
+      }
+      if (text === "browser") {
+        const server = configs.get(threadId)?.mcp_servers?.unskilled;
+        if (!server) {
+          notify("item/completed", { threadId, turnId: turn.id, item: { type: "agentMessage", id: "m", text: "no tools" } });
+          return done("completed");
+        }
+        const args = { expression: "1+1" };
+        const item = { type: "mcpToolCall", id: "t1", server: "unskilled", tool: "browser_eval", status: "inProgress", arguments: args, result: null, error: null };
+        notify("item/started", { threadId, turnId: turn.id, item });
+        let allowed = true;
+        if (server.tools?.browser_eval?.approval_mode === "prompt") {
+          const res = await ask("mcpServer/elicitation/request", {
+            threadId,
+            turnId: turn.id,
+            serverName: "unskilled",
+            mode: "form",
+            _meta: { codex_approval_kind: "mcp_tool_call", tool_params_display: [{ name: "expression", value: "1+1", display_name: "expression" }] },
+            message: 'Allow the unskilled MCP server to run tool "browser_eval"?',
+            requestedSchema: { type: "object", properties: {} },
+          });
+          allowed = res.action === "accept";
+        }
+        const result = allowed ? await callTool(server, "browser_eval", args) : null;
+        notify("item/completed", {
+          threadId,
+          turnId: turn.id,
+          item: { ...item, status: allowed ? "completed" : "failed", result, error: allowed ? null : { message: "user rejected MCP tool call" } },
+        });
+        return done("completed");
       }
       if (text === "tool") {
         const item = { type: "commandExecution", id: "c1", command: "npm test", status: "inProgress", aggregatedOutput: null, exitCode: null };
