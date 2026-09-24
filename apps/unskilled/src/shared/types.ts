@@ -32,6 +32,16 @@ export interface Settings {
   /** The agent new threads start with; null = the first available (Claude). */
   defaultAgent: string | null;
   defaultPermissionMode: PermissionMode;
+  /** Download new versions in the background and install them on quit. */
+  autoUpdate: boolean;
+}
+
+export interface AppUpdateStatus {
+  current: string;
+  /** A downloaded version waiting for a restart. */
+  ready: string | null;
+  /** False in dev builds and packages that can't update themselves. */
+  supported: boolean;
 }
 
 /** Settings as the renderer sees them: API keys only as set / not set. */
@@ -136,7 +146,8 @@ export type LiveUpdate =
   | { type: "browser-picked"; text: string | null }
   | { type: "terminal-data"; id: string; data: string }
   | { type: "terminal-exit"; id: string; code: number }
-  | { type: "settings"; settings: SettingsView };
+  | { type: "settings"; settings: SettingsView }
+  | { type: "app-update"; status: AppUpdateStatus };
 
 /** The API the preload script exposes as `window.unskilled`. */
 export interface UnskilledApi {
@@ -169,5 +180,8 @@ export interface UnskilledApi {
   setSecret(name: SecretName, value: string | null): Promise<SettingsView>;
   /** Show the app's data folder (agents.json, the database) in the file manager. */
   openDataFolder(): Promise<void>;
+  updateStatus(): Promise<AppUpdateStatus>;
+  /** Quit and install the downloaded update. */
+  installUpdate(): Promise<void>;
   onUpdate(listener: (update: LiveUpdate) => void): () => void;
 }

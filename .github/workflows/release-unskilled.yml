@@ -1,7 +1,9 @@
 name: release-unskilled
 
-# Builds UnSkilled installers for every OS: push a tag like unskilled-v0.1.0,
-# or run it by hand. Installers are unsigned until signing secrets exist.
+# Builds UnSkilled installers for every OS. Push a tag unskilled-v<version>
+# (matching apps/unskilled/package.json) to also publish a GitHub release,
+# which installed copies pick up as an update. A manual run only builds.
+# Signing and notarization run when their secrets exist; see the app README.
 on:
   push:
     tags: ["unskilled-v*"]
@@ -14,8 +16,6 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
-    env:
-      CSC_IDENTITY_AUTO_DISCOVERY: "false"
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -23,14 +23,68 @@ jobs:
         with:
           node-version: 22
           cache: pnpm
+      - name: Tag matches the app version
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: bash
+        run: |
+          version=$(node -p "require('./apps/unskilled/package.json').version")
+          test "${GITHUB_REF_NAME}" = "unskilled-v${version}" || { echo "tag ${GITHUB_REF_NAME} != unskilled-v${version}"; exit 1; }
+      # Only the secrets that are set reach electron-builder, so an unset one
+      # means "skip this step" rather than "sign with an empty certificate".
+      - name: Signing credentials
+        shell: bash
+        env:
+          MAC_CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
+          MAC_CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
+          WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
+        run: |
+          put() { if [ -n "$2" ]; then { echo "$1<<__END__"; echo "$2"; echo "__END__"; } >> "$GITHUB_ENV"; fi; }
+          signing=""
+          if [ "$RUNNER_OS" = macOS ] && [ -n "$MAC_CSC_LINK" ]; then
+            signing=1
+            put CSC_LINK "$MAC_CSC_LINK"; put CSC_KEY_PASSWORD "$MAC_CSC_KEY_PASSWORD"
+            put APPLE_ID "$APPLE_ID"; put APPLE_APP_SPECIFIC_PASSWORD "$APPLE_APP_SPECIFIC_PASSWORD"; put APPLE_TEAM_ID "$APPLE_TEAM_ID"
+          fi
+          if [ "$RUNNER_OS" = Windows ] && [ -n "$WIN_CSC_LINK" ]; then
+            signing=1
+            put CSC_LINK "$WIN_CSC_LINK"; put CSC_KEY_PASSWORD "$WIN_CSC_KEY_PASSWORD"
+          fi
+          if [ -z "$signing" ]; then echo "CSC_IDENTITY_AUTO_DISCOVERY=false" >> "$GITHUB_ENV"; echo "Building unsigned."; fi
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter unskilled dist
       - uses: actions/upload-artifact@v4
         with:
           name: unskilled-${{ runner.os }}
+          # Installers, plus the latest*.yml and .blockmap files auto-update reads.
           path: |
             apps/unskilled/dist/*.dmg
             apps/unskilled/dist/*.zip
             apps/unskilled/dist/*.exe
             apps/unskilled/dist/*.AppImage
+            apps/unskilled/dist/*.blockmap
+            apps/unskilled/dist/latest*.yml
           if-no-files-found: error
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Publish the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ls -la dist
+          version="${GITHUB_REF_NAME#unskilled-v}"
+          # --latest: the app's updater follows this repo's latest release.
+          gh release create "$GITHUB_REF_NAME" dist/* --repo "$GITHUB_REPOSITORY" --title "UnSkilled $version" --generate-notes --latest

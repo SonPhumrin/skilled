@@ -21,6 +21,7 @@ export function installMock(): void {
     theme: "system",
     defaultAgent: null,
     defaultPermissionMode: "ask",
+    autoUpdate: true,
     secretsSet: { anthropic: false, deepseek: true, openai: false },
     secretsEncrypted: true,
   };
@@ -177,6 +178,8 @@ export function installMock(): void {
     updateSettings: async (patch) => (settings = { ...settings, ...patch }),
     setSecret: async (name, value) => (settings = { ...settings, secretsSet: { ...settings.secretsSet, [name]: Boolean(value) } }),
     openDataFolder: async () => {},
+    updateStatus: async () => ({ current: "0.1.0", ready: scene === "update" ? "0.2.0" : null, supported: true }),
+    installUpdate: async () => {},
     terminalResize: () => {},
     terminalClose: async () => {},
     getDiff: async () => [

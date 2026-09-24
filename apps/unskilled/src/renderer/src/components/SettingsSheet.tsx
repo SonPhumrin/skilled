@@ -27,6 +27,7 @@ export function SettingsSheet() {
   const settings = useStore((s) => s.settings);
   const agents = useStore((s) => s.agents);
   const skills = useStore((s) => s.skills);
+  const appUpdate = useStore((s) => s.appUpdate);
   const setOpen = useStore((s) => s.setSettingsOpen);
   const panel = useRef<HTMLDivElement>(null);
 
@@ -111,6 +112,28 @@ export function SettingsSheet() {
           {KEYS.map((k) => (
             <SecretRow key={k.id} {...k} isSet={settings.secretsSet[k.id]} />
           ))}
+        </section>
+
+        <section>
+          <h3>Updates</h3>
+          <div className="row">
+            <span className="label">Version</span>
+            <span className="value">
+              {appUpdate ? `UnSkilled ${appUpdate.current}` : "UnSkilled"}
+              {appUpdate?.ready && ` · ${appUpdate.ready} is ready, and installs when you quit`}
+            </span>
+          </div>
+          <div className="row">
+            <span className="label">Auto-update</span>
+            <div className="segmented">
+              {[true, false].map((on) => (
+                <button key={String(on)} className={settings.autoUpdate === on ? "on" : ""} onClick={() => update({ autoUpdate: on })}>
+                  {on ? "On" : "Off"}
+                </button>
+              ))}
+            </div>
+          </div>
+          {appUpdate && !appUpdate.supported && <p className="note">This build doesn't update itself. Installed releases do.</p>}
         </section>
 
         <section>

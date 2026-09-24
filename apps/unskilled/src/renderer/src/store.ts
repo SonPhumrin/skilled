@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import type {
+  AppUpdateStatus,
   SettingsView,
   AgentInfo,
   LiveUpdate,
@@ -19,6 +20,7 @@ interface State {
   settings: SettingsView | null;
   settingsOpen: boolean;
   setSettingsOpen(open: boolean): void;
+  appUpdate: AppUpdateStatus | null;
   /** The agent new threads start with: the last one picked. */
   lastAgent: string | null;
   selectedProjectId: string | null;
@@ -88,6 +90,7 @@ export const useStore = create<State>((set, get) => ({
   setSettingsOpen(open) {
     set({ settingsOpen: open });
   },
+  appUpdate: null,
   lastAgent: null,
   selectedProjectId: null,
   selectedThreadId: null,
@@ -120,16 +123,17 @@ export const useStore = create<State>((set, get) => ({
     initialized = true;
     // Subscribe before the first await, so no update sent during startup is lost.
     api().onUpdate((u) => get().apply(u));
-    const [projects, skills, agents, settings] = await Promise.all([
+    const [projects, skills, agents, settings, appUpdate] = await Promise.all([
       api().listProjects(),
       api().listSkills(),
       api().listAgents(),
       api().getSettings(),
+      api().updateStatus(),
     ]);
     applyTheme(settings.theme);
     const threads: Record<string, Thread[]> = {};
     for (const p of projects) threads[p.id] = await api().listThreads(p.id);
-    set({ projects, skills, agents, threads, settings });
+    set({ projects, skills, agents, threads, settings, appUpdate });
     const first = projects[0];
     if (first) {
       await get().selectProject(first.id);
@@ -274,6 +278,9 @@ export const useStore = create<State>((set, get) => ({
       case "settings":
         applyTheme(update.settings.theme);
         set({ settings: update.settings });
+        return;
+      case "app-update":
+        set({ appUpdate: update.status });
         return;
       case "thread":
         set((s) => ({

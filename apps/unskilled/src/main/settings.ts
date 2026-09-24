@@ -16,7 +16,7 @@ export const SECRET_ENV: Record<SecretName, string> = {
   openai: "OPENAI_API_KEY",
 };
 
-const DEFAULTS: Settings = { theme: "system", defaultAgent: null, defaultPermissionMode: "ask" };
+const DEFAULTS: Settings = { theme: "system", defaultAgent: null, defaultPermissionMode: "ask", autoUpdate: true };
 
 interface FileShape {
   settings?: Partial<Settings>;
@@ -74,6 +74,7 @@ export class SettingsStore {
     if (patch.defaultPermissionMode && (["ask", "auto-edit", "full"] as PermissionMode[]).includes(patch.defaultPermissionMode)) {
       next.defaultPermissionMode = patch.defaultPermissionMode;
     }
+    if (typeof patch.autoUpdate === "boolean") next.autoUpdate = patch.autoUpdate;
     this.data.settings = next;
     this.write();
     return next;

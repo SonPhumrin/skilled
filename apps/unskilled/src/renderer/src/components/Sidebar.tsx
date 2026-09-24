@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { IconChevron, IconCompose, IconFolder, IconGear } from "../icons";
+import { api } from "../api";
 import { useStore } from "../store";
 
 export function Sidebar() {
@@ -8,6 +9,7 @@ export function Sidebar() {
   const running = useStore((s) => s.running);
   const selectedProjectId = useStore((s) => s.selectedProjectId);
   const selectedThreadId = useStore((s) => s.selectedThreadId);
+  const readyVersion = useStore((s) => s.appUpdate?.ready);
   const { addProject, selectProject, selectThread, newThread } = useStore.getState();
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
 
@@ -57,6 +59,18 @@ export function Sidebar() {
           );
         })}
       </div>
+
+      {readyVersion && (
+        <div className="update-ready">
+          <span>
+            <strong>Update ready</strong>
+            <span className="version">Version {readyVersion}</span>
+          </span>
+          <button className="button primary" onClick={() => void api().installUpdate()}>
+            Restart
+          </button>
+        </div>
+      )}
 
       <div className="sidebar-foot">
         <button className="button ghost block" onClick={() => void addProject()}>

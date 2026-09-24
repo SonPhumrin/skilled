@@ -15,11 +15,28 @@ import { startToolServer, type ToolServer } from "./mcp-http";
 import { TerminalManager } from "./terminal";
 import { Service } from "./service";
 import { SECRET_ENV, SettingsStore } from "./settings";
+import { Updater, type UpdaterBackend } from "./updater";
 import { defaultSkillsCandidates, findSkillsRoot, loadCatalog } from "./skills/catalog";
 import { ensureModelSkillsDir, ensurePlugin } from "./skills/plugin";
 
 const here = fileURLToPath(new URL(".", import.meta.url));
 const smoke = process.argv.includes("--smoke");
+
+/**
+ * electron-updater, where the app can update itself: packaged builds on
+ * macOS and Windows, and the AppImage on Linux. Never in dev or smoke runs.
+ */
+async function updaterBackend(): Promise<UpdaterBackend | null> {
+  if (!app.isPackaged || smoke || process.env.UNSKILLED_NO_UPDATE) return null;
+  if (process.platform === "linux" && !process.env.APPIMAGE) return null;
+  const { default: updater } = await import("electron-updater");
+  return updater.autoUpdater;
+}
+
+/** build/icon.png, shipped next to the app's resources in a packaged build. */
+function appIcon(): string {
+  return app.isPackaged ? join(process.resourcesPath, "icon.png") : join(app.getAppPath(), "build", "icon.png");
+}
 
 function createWindow(): BrowserWindow {
   const isMac = process.platform === "darwin";
@@ -31,6 +48,8 @@ function createWindow(): BrowserWindow {
     minHeight: 560,
     show: false,
     title: "UnSkilled",
+    // macOS and Windows take the icon from the app bundle; Linux window managers read it from here.
+    icon: process.platform === "linux" ? appIcon() : undefined,
     // A frameless-looking window on every OS: traffic lights inset on macOS,
     // native caption buttons overlaid on Windows and Linux.
     titleBarStyle: isMac ? "hiddenInset" : "hidden",
@@ -145,10 +164,21 @@ async function main(): Promise<void> {
     return { agent: s.defaultAgent, permissionMode: s.defaultPermissionMode };
   });
 
+  const updater = new Updater(
+    await updaterBackend(),
+    app.getVersion(),
+    () => settings.get().autoUpdate,
+    (status) => broadcast({ type: "app-update", status }),
+    (message) => console.warn(message),
+  );
+  updater.start();
+
   ipcMain.handle("settings:get", () => settings.view());
   ipcMain.handle("settings:update", (_e, patch: Partial<Settings>) => {
+    const before = settings.get().autoUpdate;
     const next = settings.update(patch);
     nativeTheme.themeSource = next.theme;
+    if (next.autoUpdate !== before) updater.refresh();
     const view = settings.view();
     broadcast({ type: "settings", settings: view });
     return view;
@@ -164,6 +194,8 @@ async function main(): Promise<void> {
     return view;
   });
   ipcMain.handle("app:open-data-folder", () => shell.openPath(userData));
+  ipcMain.handle("app:update-status", () => updater.status());
+  ipcMain.handle("app:install-update", () => updater.install());
 
   ipcMain.handle("projects:list", () => store.listProjects());
   ipcMain.handle("projects:add", async (event) => {
@@ -302,6 +334,7 @@ async function main(): Promise<void> {
     if (process.platform !== "darwin") app.quit();
   });
   app.on("before-quit", () => {
+    updater.stop();
     service.dispose();
     terminals.dispose();
     void toolServer?.then((s) => s.close());

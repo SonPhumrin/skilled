@@ -635,6 +635,21 @@ button { cursor: default; }
 /* ---------- settings ---------- */
 
 .sidebar-foot { display: flex; align-items: center; gap: 4px; }
+
+.update-ready {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 0 10px 10px;
+  padding: 8px 8px 8px 12px;
+  border-radius: var(--radius-m);
+  background: var(--accent-soft);
+  font-size: 12px;
+}
+.update-ready > span { display: flex; flex-direction: column; min-width: 0; }
+.update-ready strong { font-weight: 600; }
+.update-ready .version { color: var(--text-secondary); font-size: 11px; }
 .sidebar-foot .button.block { flex: 1; }
 
 .usage {

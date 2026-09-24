@@ -20,6 +20,8 @@ Settings (⌘, or the gear in the sidebar) is one sheet:
 - **New threads:** the agent and permission mode a new thread starts with.
 - **API keys** for Anthropic, DeepSeek, and OpenAI. They're encrypted with the OS keychain (Electron `safeStorage`), never sent to the window, and passed only as `ANTHROPIC_API_KEY`, `DEEPSEEK_API_KEY`, or `OPENAI_API_KEY` to agent processes. A key saved here wins over the same variable from your shell. Saving or removing one restarts running agents.
 
+- **Updates:** the version, and whether new ones download by themselves (on by default).
+
 The thread header shows one quiet meter: the thread's tokens and cost so far, summed from each finished turn.
 
 ## Terminal
@@ -68,11 +70,29 @@ pnpm typecheck
 
 Claude uses your existing Claude Code login (run `claude` once in a terminal), or `ANTHROPIC_API_KEY`. It reads your usual Claude Code settings and `CLAUDE.md`.
 
-To look at the UI without Electron or an agent: `pnpm --filter unskilled preview:ui`, then open `http://localhost:5199/?state=thread`. Other states: `permission`, `running`, `project`, `welcome`, `settings`. This uses canned data from `src/renderer/src/mock.ts`.
+To look at the UI without Electron or an agent: `pnpm --filter unskilled preview:ui`, then open `http://localhost:5199/?state=thread`. Other states: `permission`, `running`, `project`, `welcome`, `settings`, `update`. This uses canned data from `src/renderer/src/mock.ts`.
 
 ## Building installers
 
-`pnpm --filter unskilled dist` builds for the OS you're on: a `.dmg`/`.zip` on macOS, an NSIS `.exe` on Windows, an `.AppImage` on Linux. To build all three, push a tag `unskilled-v<version>`; the `release-unskilled` workflow builds them and uploads them as artifacts. Builds are unsigned until signing secrets are added.
+`pnpm --filter unskilled dist` builds for the OS you're on: a `.dmg`/`.zip` on macOS, an NSIS `.exe` on Windows, an `.AppImage` on Linux. The icon is `build/icon.png`, rendered from `build/icon.svg`.
+
+To release, bump `version` in `apps/unskilled/package.json` and push a tag `unskilled-v<version>`. The `release-unskilled` workflow builds all three, then publishes a GitHub release with the installers and the `latest*.yml` files the updater reads. Running the workflow by hand only builds.
+
+### Updates
+
+Installed copies check this repo's latest GitHub release at start and every four hours, download a newer version in the background, and install it when you quit. The sidebar shows **Update ready · Restart** to install right away. It works in the macOS and Windows builds and the Linux AppImage, never in dev. On macOS it needs a signed build, because macOS refuses unsigned updates. Other releases in this repo must not be marked "latest", or the updater will look there and find nothing.
+
+### Signing
+
+Builds are unsigned until these repository secrets exist. Each OS signs only when its own are set.
+
+| Secret | What it is |
+| :--- | :--- |
+| `MAC_CSC_LINK`, `MAC_CSC_KEY_PASSWORD` | A "Developer ID Application" certificate as a base64 `.p12`, and its password |
+| `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD`, `APPLE_TEAM_ID` | For notarization. Needs the certificate above |
+| `WIN_CSC_LINK`, `WIN_CSC_KEY_PASSWORD` | A code-signing certificate as a base64 `.pfx`, and its password |
+
+The macOS build uses the hardened runtime with the entitlements in `build/entitlements.mac.plist`: JIT for V8 and the bundled Claude Code binary, and library validation off for node-pty.
 
 CI runs typecheck, tests, packaging, and a smoke test of the packaged app on all three OSes. The smoke test (`--smoke`) checks that the window loads, the preload bridge works, the skills catalog and settings answer, the bundled Claude Code binary runs, the browser tools can open a page, type, click, pick an element, and read the console, and a real shell answers through node-pty. Set `UNSKILLED_SMOKE_SCREENSHOT=<file.png>` to also save a screenshot of the window.
 
@@ -84,6 +104,7 @@ CI runs typecheck, tests, packaging, and a smoke test of the packaged app on all
 | `src/main/service.ts` | Everything the UI can ask for. No Electron imports, so it runs in tests |
 | `src/main/agents/` | The `AgentDriver` interface; the Claude (Agent SDK), Codex (app-server), and ACP drivers; the shared stdio JSON-RPC transport; and the agent registry |
 | `src/main/skills/` | Reading `skills.json`, generating the plugin, composing prompts |
+| `src/main/updater.ts` | Background updates from GitHub releases (electron-updater) |
 | `src/main/settings.ts` | Settings and encrypted API keys, in `settings.json` in the data folder |
 | `src/main/db.ts` | SQLite store (`node:sqlite`): projects, threads, events |
 | `src/main/git.ts` | Working-tree diff for the Changes panel |
@@ -102,4 +123,4 @@ Electron 44 (the same Chromium on every OS, which the built-in browser needs), R
 ## Roadmap
 
 - **Milestone 2:** ~~the built-in browser pane~~, ~~the generic ACP driver~~, and ~~browser tools for ACP agents~~, ~~the element picker~~, ~~Codex~~, and ~~the terminal tab~~ (done). Still to come: browser tools for Codex.
-- **Milestone 3:** ~~settings~~, ~~a per-thread view of token usage~~ (done). Still to come: an app icon, auto-update, code signing and notarization, and browser tools for Codex.
+- **Milestone 3:** ~~settings~~, ~~a per-thread view of token usage~~, ~~an app icon~~, ~~auto-update~~, ~~signing and notarization~~ (done). Still to come: browser tools for Codex.
