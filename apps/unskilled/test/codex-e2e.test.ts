@@ -7,6 +7,7 @@ import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import type { ThreadEvent } from "../src/shared/types";
 import { createCodexDriver } from "../src/main/agents/codex";
+import type { LimitsPatch } from "../src/main/agents/limits";
 import { onPath } from "../src/main/agents/registry";
 import type { HarnessTool, TurnInput } from "../src/main/agents/types";
 import { startToolServer } from "../src/main/mcp-http";
@@ -38,7 +39,15 @@ async function fakeModel(): Promise<{ server: Server; url: string; offered: stri
           ? { type: "function_call", call_id: `c${n}`, namespace: "mcp__unskilled", name: "browser_eval", arguments: '{"expression":"1+1"}' }
           : { type: "message", role: "assistant", id: `m${n}`, content: [{ type: "output_text", text: called ? "Evaluated." : "Hello." }] };
       const usage = { input_tokens: 10, input_tokens_details: null, output_tokens: 5, output_tokens_details: null, total_tokens: 15 };
-      res.writeHead(200, { "content-type": "text/event-stream" });
+      res.writeHead(200, {
+        "content-type": "text/event-stream",
+        // What the real backend sends for plan limits; Codex turns them into account/rateLimits/updated.
+        "x-codex-primary-used-percent": "42",
+        "x-codex-primary-window-minutes": "300",
+        "x-codex-primary-reset-at": "1790000000",
+        "x-codex-secondary-used-percent": "9",
+        "x-codex-secondary-window-minutes": "10080",
+      });
       res.end(
         sse([
           { type: "response.created", response: { id } },
@@ -57,6 +66,7 @@ describe.skipIf(!codex)("Codex end to end (real app-server, fake model)", () => 
     const model = await fakeModel();
     closeAfter(() => void model.server.close());
     const ran: string[] = [];
+    const limitReports: LimitsPatch[] = [];
     const evalTool: HarnessTool = {
       name: "browser_eval",
       description: "Evaluate JavaScript in the page",
@@ -80,6 +90,7 @@ describe.skipIf(!codex)("Codex end to end (real app-server, fake model)", () => 
       ],
       clientVersion: "test",
       toolServer: async () => tools,
+      onLimits: (p) => limitReports.push(p),
     });
     closeAfter(() => driver.dispose?.());
     const previousHome = process.env.CODEX_HOME;
@@ -115,6 +126,9 @@ describe.skipIf(!codex)("Codex end to end (real app-server, fake model)", () => 
     const first = await run({});
     expect(first.events.find((e) => e.kind === "assistant-text")).toMatchObject({ text: "Hello." });
     expect(model.offered.at(-1)).toEqual([]);
+    // Limits come from the model's response headers, with no extra request.
+    expect(limitReports.flatMap((p) => p.windows ?? [])).toContainEqual({ id: "codex:primary", label: "5-hour", usedPercent: 42, resetsAt: 1_790_000_000_000 });
+    expect(limitReports.flatMap((p) => p.windows ?? [])).toContainEqual({ id: "codex:secondary", label: "Weekly", usedPercent: 9, resetsAt: null });
 
     const second = await run({ sessionId: first.session, tools: [evalTool] });
     expect(second.session).toBe(first.session);

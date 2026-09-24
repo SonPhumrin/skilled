@@ -7,6 +7,7 @@ import { spawnSync } from "node:child_process";
 import { createAcpDriver } from "./agents/acp/driver";
 import { createClaudeDriver, resolvePackagedClaudeBinary } from "./agents/claude";
 import { createCodexDriver } from "./agents/codex";
+import { LimitsTracker } from "./agents/limits";
 import { loadAcpAgents, onPath } from "./agents/registry";
 import { BrowserController, isAllowedUrl } from "./browser/controller";
 import { browserTools } from "./browser/tools";
@@ -122,15 +123,17 @@ async function main(): Promise<void> {
   );
   const catalog = loadCatalog(root);
   const pluginDir = join(userData, "skilled-plugin");
-  const driver = createClaudeDriver({
-    pluginDir: () => ensurePlugin(catalog, pluginDir),
-    guardScript: join(root.skillsDir, "git-guardrails", "scripts", "block-dangerous-git.py"),
-  });
-
   const windows = new Set<BrowserWindow>();
   const broadcast = (update: LiveUpdate) => {
     for (const w of windows) if (!w.isDestroyed()) w.webContents.send("unskilled:update", update);
   };
+  // Plan rate limits, fed only by what agents report during turns: no polling.
+  const limits = new LimitsTracker((l) => broadcast({ type: "limits", limits: l }));
+  const driver = createClaudeDriver({
+    pluginDir: () => ensurePlugin(catalog, pluginDir),
+    guardScript: join(root.skillsDir, "git-guardrails", "scripts", "block-dangerous-git.py"),
+    onLimits: limits.for("claude"),
+  });
   const browser = new BrowserController(
     (url) => broadcast({ type: "browser-open", url }),
     join(userData, "screenshots"),
@@ -156,6 +159,7 @@ async function main(): Promise<void> {
             clientVersion: app.getVersion(),
             skillsDir: () => ensureModelSkillsDir(catalog, modelSkillsDir),
             toolServer: getToolServer,
+            onLimits: limits.for("codex"),
           }),
         ]
       : []),
@@ -203,6 +207,7 @@ async function main(): Promise<void> {
   });
   ipcMain.handle("app:open-data-folder", () => shell.openPath(userData));
   ipcMain.handle("app:update-status", () => updater.status());
+  ipcMain.handle("limits:list", () => limits.all());
   ipcMain.handle("app:install-update", () => updater.install());
 
   ipcMain.handle("projects:list", () => store.listProjects());

@@ -27,6 +27,7 @@ const api: UnskilledApi = {
   setSecret: (name, value) => ipcRenderer.invoke("settings:secret", name, value),
   openDataFolder: () => ipcRenderer.invoke("app:open-data-folder"),
   updateStatus: () => ipcRenderer.invoke("app:update-status"),
+  listLimits: () => ipcRenderer.invoke("limits:list"),
   installUpdate: () => ipcRenderer.invoke("app:install-update"),
   onUpdate: (listener) => {
     const handler = (_e: Electron.IpcRendererEvent, update: LiveUpdate) => listener(update);

@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import type {
+  AgentLimits,
   AppUpdateStatus,
   SettingsView,
   AgentInfo,
@@ -21,6 +22,8 @@ interface State {
   settingsOpen: boolean;
   setSettingsOpen(open: boolean): void;
   appUpdate: AppUpdateStatus | null;
+  /** Plan rate limits by agent id, as the agents last reported them. */
+  limits: Record<string, AgentLimits>;
   paletteOpen: boolean;
   setPaletteOpen(open: boolean): void;
   /** The agent new threads start with: the last one picked. */
@@ -93,6 +96,7 @@ export const useStore = create<State>((set, get) => ({
     set({ settingsOpen: open });
   },
   appUpdate: null,
+  limits: {},
   paletteOpen: false,
   setPaletteOpen(open) {
     set({ paletteOpen: open });
@@ -129,17 +133,19 @@ export const useStore = create<State>((set, get) => ({
     initialized = true;
     // Subscribe before the first await, so no update sent during startup is lost.
     api().onUpdate((u) => get().apply(u));
-    const [projects, skills, agents, settings, appUpdate] = await Promise.all([
+    const [projects, skills, agents, settings, appUpdate, limitList] = await Promise.all([
       api().listProjects(),
       api().listSkills(),
       api().listAgents(),
       api().getSettings(),
       api().updateStatus(),
+      api().listLimits(),
     ]);
     applyTheme(settings.theme);
     const threads: Record<string, Thread[]> = {};
     for (const p of projects) threads[p.id] = await api().listThreads(p.id);
-    set({ projects, skills, agents, threads, settings, appUpdate });
+    const limits = Object.fromEntries(limitList.map((l) => [l.agent, l]));
+    set((s) => ({ projects, skills, agents, threads, settings, appUpdate, limits: { ...limits, ...s.limits } }));
     const first = projects[0];
     if (first) {
       await get().selectProject(first.id);
@@ -287,6 +293,9 @@ export const useStore = create<State>((set, get) => ({
         return;
       case "app-update":
         set({ appUpdate: update.status });
+        return;
+      case "limits":
+        set((s) => ({ limits: { ...s.limits, [update.limits.agent]: update.limits } }));
         return;
       case "thread":
         set((s) => ({

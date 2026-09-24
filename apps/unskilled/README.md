@@ -28,6 +28,8 @@ Settings (⌘, or the gear in the sidebar) is one sheet:
 
 The thread header shows one quiet meter: the thread's tokens and cost so far, summed from each finished turn.
 
+Beside it, a limit meter shows how close the thread's agent is to its plan's rate limits (Claude's 5-hour and weekly windows, Codex's windows), once one passes 50%. It turns orange from 80% and red when a limit is hit, with reset times on hover. The app never asks for these: Claude Code sends a `rate_limit_event` and Codex an `account/rateLimits/updated` notification, both built from the headers on responses the agent gets anyway. There's no polling, and no call to Claude's usage endpoint or Codex's `account/rateLimits/read`, so watching the limits can't use them up. The numbers are only as fresh as the agent's last turn; API-key logins have no plan limits, so they show none.
+
 ## Terminal
 
 The Terminal tab (⌃\`) is a real shell in the project folder: `$SHELL` on macOS and Linux, and PowerShell 7, Windows PowerShell, or cmd on Windows. It runs through node-pty and xterm.js, with one shell per project that keeps running while you switch tabs. If the shell exits, press any key to start a new one.
@@ -74,7 +76,7 @@ pnpm typecheck
 
 Claude uses your existing Claude Code login (run `claude` once in a terminal), or `ANTHROPIC_API_KEY`. It reads your usual Claude Code settings and `CLAUDE.md`.
 
-To look at the UI without Electron or an agent: `pnpm --filter unskilled preview:ui`, then open `http://localhost:5199/?state=thread`. Other states: `permission`, `running`, `project`, `welcome`, `settings`, `update`, `palette`. This uses canned data from `src/renderer/src/mock.ts`.
+To look at the UI without Electron or an agent: `pnpm --filter unskilled preview:ui`, then open `http://localhost:5199/?state=thread`. Other states: `permission`, `running`, `project`, `welcome`, `settings`, `update`, `palette`, `limits`. This uses canned data from `src/renderer/src/mock.ts`.
 
 ## Building installers
 
@@ -98,7 +100,7 @@ Builds are unsigned until these repository secrets exist. Each OS signs only whe
 
 The macOS build uses the hardened runtime with the entitlements in `build/entitlements.mac.plist`: JIT for V8 and the bundled Claude Code binary, and library validation off for node-pty.
 
-CI runs typecheck, tests, packaging, and a smoke test of the packaged app on all three OSes. The smoke test (`--smoke`) checks that the window loads, the preload bridge works, the skills catalog and settings answer, the bundled Claude Code binary runs, the browser tools can open a page, type, click, pick an element, and read the console, and a real shell answers through node-pty. Set `UNSKILLED_SMOKE_SCREENSHOT=<file.png>` to also save a screenshot of the window. On Linux, CI also installs Codex, so `test/codex-e2e.test.ts` runs the real `codex app-server` against a fake model: it adds the browser tools mid-thread, then approves and runs one.
+CI runs typecheck, tests, packaging, and a smoke test of the packaged app on all three OSes. The smoke test (`--smoke`) checks that the window loads, the preload bridge works, the skills catalog and settings answer, the bundled Claude Code binary runs, the browser tools can open a page, type, click, pick an element, and read the console, and a real shell answers through node-pty. Set `UNSKILLED_SMOKE_SCREENSHOT=<file.png>` to also save a screenshot of the window. On Linux, CI also installs Codex, so `test/codex-e2e.test.ts` runs the real `codex app-server` against a fake model: it adds the browser tools mid-thread, then approves and runs one. `test/claude-e2e.test.ts` does the same for the bundled Claude Code binary against a fake Messages API, on every OS. Both fakes send plan rate-limit headers, and the tests check the limits arrive without any extra request.
 
 ## Layout
 

@@ -178,6 +178,21 @@ export function installMock(): void {
     updateSettings: async (patch) => (settings = { ...settings, ...patch }),
     setSecret: async (name, value) => (settings = { ...settings, secretsSet: { ...settings.secretsSet, [name]: Boolean(value) } }),
     openDataFolder: async () => {},
+    listLimits: async () =>
+      scene === "limits"
+        ? [
+            {
+              agent: "claude",
+              windows: [
+                { id: "five_hour", label: "5-hour", usedPercent: 84, resetsAt: now + 95 * 60_000 },
+                { id: "seven_day", label: "Weekly", usedPercent: 41, resetsAt: now + 3 * 86_400_000 },
+              ],
+              state: "warning" as const,
+              plan: "max",
+              updatedAt: now,
+            },
+          ]
+        : [],
     updateStatus: async () => ({ current: "0.1.0", ready: scene === "update" ? "0.2.0" : null, supported: true }),
     installUpdate: async () => {},
     terminalResize: () => {},

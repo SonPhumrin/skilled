@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import type { PermissionDecision, ThreadEvent } from "../src/shared/types";
 import { z } from "zod";
 import { codexDecision, codexPolicy, codexToolConfig, createCodexDriver } from "../src/main/agents/codex";
+import type { LimitsPatch } from "../src/main/agents/limits";
 import type { HarnessTool, TurnInput } from "../src/main/agents/types";
 import { startToolServer } from "../src/main/mcp-http";
 import { closeAfter } from "./helpers";
@@ -53,6 +54,14 @@ describe("Codex driver", () => {
     expect(t.events.map((e) => e.kind)).toEqual(["thinking", "assistant-text", "turn-end"]);
     expect(t.events.at(-1)).toMatchObject({ inputTokens: 900, outputTokens: 12, durationMs: 42 });
     expect(d.models().map((m) => m.id)).toEqual(["default", "gpt-mock"]);
+  });
+
+  it("passes on the rate limits Codex reports during a turn", async () => {
+    const reports: LimitsPatch[] = [];
+    const d = createCodexDriver({ command: process.execPath, args: [MOCK], clientVersion: "test", onLimits: (p) => reports.push(p) });
+    closeAfter(() => d.dispose?.());
+    await d.runTurn(turn("there").input);
+    expect(reports).toEqual([{ windows: [{ id: "codex:primary", label: "5-hour", usedPercent: 37, resetsAt: 1_790_000_000_000 }], plan: "plus" }]);
   });
 
   it("registers skilled's skills as an extra skills root", async () => {

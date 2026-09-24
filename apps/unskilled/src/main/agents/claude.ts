@@ -5,6 +5,7 @@ import type { HookCallback, Options, PermissionResult, SDKMessage } from "@anthr
 import type { ModelOption, PermissionMode } from "../../shared/types";
 import { checkCommand } from "../guard";
 import { PLUGIN_NAME } from "../skills/plugin";
+import { claudeLimitsPatch, type LimitsListener } from "./limits";
 import { summarizeToolInput, summarizeToolResult } from "./summarize";
 import type { AgentDriver, HarnessTool, ToolOutput, TurnInput } from "./types";
 
@@ -81,6 +82,8 @@ export interface ClaudeDriverConfig {
   pluginDir: () => string;
   /** skilled's git-guardrails script. */
   guardScript: string;
+  /** Plan rate limits, as Claude reports them during turns (claude.ai logins only). */
+  onLimits?: LimitsListener;
 }
 
 /**
@@ -144,7 +147,8 @@ export function createClaudeDriver(config: ClaudeDriverConfig): AgentDriver {
 
       try {
         for await (const message of query({ prompt: input.prompt, options })) {
-          handleMessage(message, input);
+          if (message.type === "rate_limit_event") config.onLimits?.(claudeLimitsPatch(message.rate_limit_info));
+          else handleMessage(message, input);
         }
       } catch (err) {
         if (input.signal.aborted) {
