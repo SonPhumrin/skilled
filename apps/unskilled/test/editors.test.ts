@@ -1,5 +1,5 @@
 import { readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { join, win32 } from "node:path";
 import { describe, expect, it } from "vitest";
 import { EDITORS, editorArgs, Editors, type Host, launchDetached, quoteForCmd, resolveEditor } from "../src/main/editors";
 import { tempDir } from "./helpers";
@@ -28,15 +28,16 @@ describe("resolveEditor", () => {
     const mac = host("darwin", ["/Users/me/Library/Application Support/JetBrains/Toolbox/scripts/webstorm"], { HOME: "/Users/me" });
     expect(resolveEditor(def("webstorm"), mac)).toBe("/Users/me/Library/Application Support/JetBrains/Toolbox/scripts/webstorm");
     const pf = "C:\\Program Files";
-    const win = host("win32", [join(pf, "JetBrains", "WebStorm 2026.2", "bin/webstorm64.exe")], { ProgramFiles: pf }, { [join(pf, "JetBrains")]: ["WebStorm 2025.3", "WebStorm 2026.2", "PyCharm 2026.1"] });
-    expect(resolveEditor(def("webstorm"), win)).toBe(join(pf, "JetBrains", "WebStorm 2026.2", "bin/webstorm64.exe"));
+    const w = win32.join;
+    const win = host("win32", [w(pf, "JetBrains", "WebStorm 2026.2", "bin/webstorm64.exe")], { ProgramFiles: pf }, { [w(pf, "JetBrains")]: ["WebStorm 2025.3", "WebStorm 2026.2", "PyCharm 2026.1"] });
+    expect(resolveEditor(def("webstorm"), win)).toBe("C:\\Program Files\\JetBrains\\WebStorm 2026.2\\bin\\webstorm64.exe");
   });
 
   it("finds per-user Windows installs and PATHEXT launchers", () => {
     const local = "C:\\Users\\me\\AppData\\Local";
-    const cursor = join(local, "Programs", "cursor", "resources/app/bin/cursor.cmd");
+    const cursor = "C:\\Users\\me\\AppData\\Local\\Programs\\cursor\\resources\\app\\bin\\cursor.cmd";
     expect(resolveEditor(def("cursor"), host("win32", [cursor], { LOCALAPPDATA: local }))).toBe(cursor);
-    expect(resolveEditor(def("vscode"), host("win32", [join("C:\\bin", "code.cmd")], { PATH: "C:\\bin", PATHEXT: ".EXE;.CMD" }))).toBe(join("C:\\bin", "code.cmd"));
+    expect(resolveEditor(def("vscode"), host("win32", ["C:\\bin\\code.cmd"], { PATH: "C:\\bin", PATHEXT: ".EXE;.CMD" }))).toBe("C:\\bin\\code.cmd");
   });
 
   it("finds snap installs on Linux, and keeps Xcode to macOS", () => {

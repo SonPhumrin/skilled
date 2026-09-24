@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 import { accessSync, constants, readdirSync, statSync } from "node:fs";
-import { delimiter, join } from "node:path";
+import { posix, win32 } from "node:path";
 import type { EditorInfo, OpenResult } from "../shared/types";
 
 /**
@@ -109,10 +109,13 @@ export const realHost = (): Host => ({
   },
 });
 
+/** Paths in the checked platform's own style, so detection is testable from any OS. */
+const pathsFor = (platform: NodeJS.Platform) => (platform === "win32" ? win32 : posix);
+
 function onPath(command: string, host: Host): string | null {
+  const { join, delimiter } = pathsFor(host.platform);
   const exts = host.platform === "win32" ? (host.env.PATHEXT ?? ".EXE;.CMD;.BAT").split(";").filter(Boolean) : [""];
-  const sep = host.platform === "win32" ? ";" : delimiter;
-  for (const dir of (host.env.PATH ?? host.env.Path ?? "").split(sep)) {
+  for (const dir of (host.env.PATH ?? host.env.Path ?? "").split(delimiter)) {
     if (!dir) continue;
     for (const ext of exts) {
       const candidate = join(dir, command + ext.toLowerCase());
@@ -132,6 +135,7 @@ function onPath(command: string, host: Host): string | null {
  */
 export function resolveEditor(def: EditorDef, host: Host): string | null {
   if (def.only && def.only !== host.platform) return null;
+  const { join } = pathsFor(host.platform);
   for (const command of def.commands) {
     const found = onPath(command, host);
     if (found) return found;
