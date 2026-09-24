@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Regression tests for install.sh's ownership-manifest safety.
+"""Regression tests for the installer's ownership-manifest safety.
 
-Runs install.sh against a small isolated fake "skilled repo" (a couple of
+Runs install.py (and, on POSIX, its install.sh wrapper) against a small isolated fake "skilled repo" (a couple of
 fake skills) inside a tempdir -- never
 against this actual repo or the user's home/projects. Standard library only
 (subprocess + tempfile + unittest), matching the rest of this repo's
@@ -14,28 +14,49 @@ import json
 import os
 import shutil
 import subprocess
+import sys
 import tempfile
 import unittest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, REPO_ROOT)
+import installer_lib  # noqa: E402 -- needs REPO_ROOT on sys.path first
+
+
+def _can_symlink():
+    probe = tempfile.mkdtemp(prefix="skilled-symlink-probe-")
+    try:
+        os.symlink(probe, os.path.join(probe, "link"), target_is_directory=True)
+        return True
+    except (OSError, NotImplementedError):
+        return False
+    finally:
+        shutil.rmtree(probe, ignore_errors=True)
+
+
+CAN_SYMLINK = _can_symlink()
+needs_symlinks = unittest.skipUnless(CAN_SYMLINK, "symlinks unavailable on this machine")
 
 
 def build_fake_repo(root):
-    """A minimal stand-in for the real skilled repo: 2 fake skills, this
-    repo's real install.sh + installer_lib.py.
+    """A minimal stand-in for the real skilled repo: 2 fake skills (one of
+    them user-invoked), this repo's real install.py + install.sh +
+    installer_lib.py.
     Keeps tests fast and, critically, means a bug in a test can never touch
     this actual repo's real files."""
     repo = os.path.join(root, "fake-skilled-repo")
     os.makedirs(os.path.join(repo, "skills", "skill-a"))
     os.makedirs(os.path.join(repo, "skills", "skill-b"))
 
-    shutil.copy(os.path.join(REPO_ROOT, "install.sh"), os.path.join(repo, "install.sh"))
-    shutil.copy(os.path.join(REPO_ROOT, "installer_lib.py"), os.path.join(repo, "installer_lib.py"))
+    for script in ("install.sh", "install.py", "installer_lib.py"):
+        shutil.copy(os.path.join(REPO_ROOT, script), os.path.join(repo, script))
     os.chmod(os.path.join(repo, "install.sh"), 0o755)
 
-    for name in ("skill-a", "skill-b"):
-        with open(os.path.join(repo, "skills", name, "SKILL.md"), "w") as f:
-            f.write(f"---\nname: {name}\ndescription: fake {name} for install.sh tests\n---\ncontent\n")
+    with open(os.path.join(repo, "skills", "skill-a", "SKILL.md"), "w", newline="\n") as f:
+        f.write("---\nname: skill-a\ndescription: fake skill-a for install.sh tests\n---\ncontent\n")
+    with open(os.path.join(repo, "skills", "skill-b", "SKILL.md"), "w", newline="\n") as f:
+        f.write("---\nname: skill-b\ndescription: fake skill-b for install.sh tests\n"
+                "disable-model-invocation: true\n---\ncontent\n")
     return repo
 
 
@@ -45,15 +66,20 @@ class InstallerTestCase(unittest.TestCase):
         self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
         self.repo = build_fake_repo(self.tmp)
 
-    def run_install(self, project, *args, check=False):
+    def run_install(self, project, *args, check=False, env=None):
         result = subprocess.run(
-            [os.path.join(self.repo, "install.sh"), project, *args],
+            [sys.executable, os.path.join(self.repo, "install.py"), project, *args],
             capture_output=True,
             text=True,
+            env=env,
         )
         if check and result.returncode != 0:
-            self.fail(f"install.sh {args} failed:\n{result.stdout}\n{result.stderr}")
+            self.fail(f"install.py {args} failed:\n{result.stdout}\n{result.stderr}")
         return result
+
+    def manifest(self, project):
+        with open(os.path.join(project, ".skilled-install.json")) as f:
+            return json.load(f)["entries"]
 
     def new_project(self, name="proj"):
         path = os.path.join(self.tmp, name)
@@ -80,6 +106,7 @@ class TestOwnershipConflicts(InstallerTestCase):
             self.assertIn("MY OWN CUSTOM CONTENT", f.read())
         self.assertTrue(os.path.exists(os.path.join(skill_dir, "my-notes.md")))
 
+    @needs_symlinks
     def test_legacy_pre_manifest_symlink_is_adopted_without_conflict(self):
         project = self.new_project()
         skills_dir = os.path.join(project, ".claude", "skills")
@@ -89,9 +116,7 @@ class TestOwnershipConflicts(InstallerTestCase):
         result = self.run_install(project, "--claude", check=True)
         self.assertNotIn("conflict", result.stdout + result.stderr)
 
-        with open(os.path.join(project, ".skilled-install.json")) as f:
-            manifest = json.load(f)
-        self.assertIn(".claude/skills/skill-a", manifest["entries"])
+        self.assertIn(".claude/skills/skill-a", self.manifest(project))
 
 
 class TestUninstall(InstallerTestCase):
@@ -111,8 +136,7 @@ class TestUninstall(InstallerTestCase):
         self.run_install(project, check=True)
         self.run_install(project, check=True)  # reinstall must be idempotent, no conflicts
         self.run_install(project, "--uninstall", check=True)
-        self.assertFalse(os.path.exists(os.path.join(project, ".skilled-install.json")))
-        self.assertFalse(os.path.exists(os.path.join(project, "opencode.json")))
+        self.assertEqual(os.listdir(project), [], "uninstall must leave the project as it found it")
 
     def test_modified_vendored_skill_is_left_in_place_on_uninstall(self):
         project = self.new_project()
@@ -127,6 +151,7 @@ class TestUninstall(InstallerTestCase):
 
 
 class TestModeConversion(InstallerTestCase):
+    @needs_symlinks
     def test_symlink_to_vendor_does_not_corrupt_repo_source(self):
         project = self.new_project()
         self.run_install(project, "--claude", check=True)
@@ -139,6 +164,7 @@ class TestModeConversion(InstallerTestCase):
         self.assertFalse(os.path.islink(skill_a_dest))
         self.assertTrue(os.path.isdir(skill_a_dest))
 
+    @needs_symlinks
     def test_vendor_to_symlink_produces_clean_link_not_nested(self):
         project = self.new_project()
         self.run_install(project, "--claude", "--vendor", check=True)
@@ -147,7 +173,7 @@ class TestModeConversion(InstallerTestCase):
 
         skill_a_dest = os.path.join(project, ".claude", "skills", "skill-a")
         self.assertTrue(os.path.islink(skill_a_dest))
-        self.assertEqual(os.readlink(skill_a_dest), os.path.join(self.repo, "skills", "skill-a"))
+        self.assertEqual(installer_lib.readlink(skill_a_dest), os.path.join(self.repo, "skills", "skill-a"))
 
 
 class TestPreflight(InstallerTestCase):
@@ -179,6 +205,53 @@ class TestCliArgs(InstallerTestCase):
         project = self.new_project()
         result = self.run_install(project, project)
         self.assertNotEqual(result.returncode, 0)
+
+
+class TestNewTargets(InstallerTestCase):
+    def test_model_only_skips_user_invoked(self):
+        project = self.new_project()
+        self.run_install(project, "--claude", "--vendor", "--model-only", check=True)
+        self.assertEqual(os.listdir(os.path.join(project, ".claude", "skills")), ["skill-a"])
+
+    def test_switching_to_model_only_prunes_unmodified_user_invoked(self):
+        project = self.new_project()
+        self.run_install(project, "--claude", "--vendor", check=True)
+        self.run_install(project, "--claude", "--vendor", "--model-only", check=True)
+        self.assertEqual(os.listdir(os.path.join(project, ".claude", "skills")), ["skill-a"])
+        self.assertNotIn(".claude/skills/skill-b", self.manifest(project))
+
+    def test_codex_and_dsh_use_agents_dir_without_antigravity_json(self):
+        for flag in ("--codex", "--dsh"):
+            project = self.new_project(flag.strip("-"))
+            self.run_install(project, flag, "--vendor", check=True)
+            self.assertEqual(sorted(os.listdir(os.path.join(project, ".agents", "skills"))),
+                             ["skill-a", "skill-b"])
+            self.assertFalse(os.path.exists(os.path.join(project, ".agents", "skills.json")))
+            self.assertFalse(os.path.exists(os.path.join(project, ".claude")))
+            self.run_install(project, flag, "--uninstall", check=True)
+            self.assertFalse(os.path.exists(os.path.join(project, ".skilled-install.json")))
+
+    def test_symlink_fallback_copies_and_round_trips(self):
+        project = self.new_project()
+        env = dict(os.environ, SKILLED_NO_SYMLINKS="1")
+        result = self.run_install(project, "--claude", check=True, env=env)
+        self.assertIn("copied instead", result.stdout)
+        dest = os.path.join(project, ".claude", "skills", "skill-a")
+        self.assertTrue(os.path.isdir(dest) and not os.path.islink(dest))
+        self.assertEqual(self.manifest(project)[".claude/skills/skill-a"]["kind"], "vendor-dir")
+        self.run_install(project, "--claude", check=True, env=env)  # idempotent
+        self.run_install(project, "--claude", "--uninstall", check=True, env=env)
+        self.assertEqual(os.listdir(project), [])
+
+
+@unittest.skipIf(os.name == "nt", "install.sh is the POSIX wrapper")
+class TestShellWrapper(InstallerTestCase):
+    def test_install_sh_forwards_to_install_py(self):
+        project = self.new_project()
+        result = subprocess.run([os.path.join(self.repo, "install.sh"), project, "--claude", "--vendor"],
+                                capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn(".claude/skills/skill-a", self.manifest(project))
 
 
 if __name__ == "__main__":

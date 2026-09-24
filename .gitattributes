@@ -1,0 +1,5 @@
+# Skills, scripts, and generated files are LF everywhere, so a Windows
+# checkout parses SKILL.md frontmatter and fingerprints skill directories
+# exactly as Linux and macOS do (skills.json's sha256 values depend on it).
+* text=auto eol=lf
+*.svg -text

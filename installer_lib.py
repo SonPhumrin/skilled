@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""Ownership manifest + safe-write helpers for install.sh.
+"""Ownership manifest + safe-write helpers for install.py.
 
-Called as a subprocess by install.sh (`python3 installer_lib.py <cmd> ...`)
-and imported directly by tests/test_install.py. Keeps a small per-project
+Imported by install.py, tests/validate_skills.py and tests/test_install.py;
+the `python3 installer_lib.py <cmd> ...` CLI below is kept for scripts that
+still shell out to it. Keeps a small per-project
 manifest (.skilled-install.json) recording exactly which paths this
 installer created, what kind of thing each one is, and a fingerprint of what
 was written -- so later runs can tell "ours, unchanged", "ours, but the user
@@ -30,7 +31,8 @@ def load_manifest(project):
     path = manifest_path(project)
     if not os.path.exists(path):
         return {"version": MANIFEST_VERSION, "entries": {}}
-    content = open(path).read().strip()
+    with open(path, encoding="utf-8") as f:
+        content = f.read().strip()
     if not content:
         return {"version": MANIFEST_VERSION, "entries": {}}
     data = json.loads(content)
@@ -42,7 +44,7 @@ def load_manifest(project):
 def atomic_write_json(path, data):
     directory = os.path.dirname(path) or "."
     tmp = os.path.join(directory, f".{os.path.basename(path)}.tmp.{os.getpid()}")
-    with open(tmp, "w") as f:
+    with open(tmp, "w", encoding="utf-8", newline="\n") as f:
         json.dump(data, f, indent=2)
         f.write("\n")
         f.flush()
@@ -67,7 +69,9 @@ def fingerprint_dir(path):
         dirs.sort()
         for name in sorted(files):
             full = os.path.join(root, name)
-            rel = os.path.relpath(full, path)
+            # "/" on every OS, so a fingerprint taken on Windows matches one
+            # taken on Linux/macOS for the same tree.
+            rel = os.path.relpath(full, path).replace(os.sep, "/")
             h.update(rel.encode())
             h.update(b"\0")
             with open(full, "rb") as f:
@@ -78,6 +82,30 @@ def fingerprint_dir(path):
 
 def fingerprint_of(path):
     return fingerprint_dir(path) if os.path.isdir(path) else fingerprint_file(path)
+
+
+def readlink(path):
+    """os.readlink without Windows' \\\\?\\ extended-path prefix, so a link's
+    target compares equal to the plain path it was created from."""
+    target = os.readlink(path)
+    return target[4:] if target.startswith("\\\\?\\") else target
+
+
+def is_user_invoked(skill_dir):
+    """True when the skill's SKILL.md frontmatter sets
+    `disable-model-invocation: true` (CONVENTIONS.md "Invocation is the one
+    axis")."""
+    with open(os.path.join(skill_dir, "SKILL.md"), encoding="utf-8") as f:
+        lines = f.read().splitlines()
+    if not lines or lines[0].strip() != "---":
+        return False
+    for line in lines[1:]:
+        if line.strip() == "---":
+            break
+        key, _, value = line.partition(":")
+        if key.strip() == "disable-model-invocation":
+            return value.strip().strip("\"'").lower() == "true"
+    return False
 
 
 def check_entry(project, rel_path, kind, expected_target=None):
@@ -115,12 +143,12 @@ def check_entry(project, rel_path, kind, expected_target=None):
     if entry:
         recorded_kind = entry.get("kind")
         if recorded_kind == "symlink":
-            matches = os.path.islink(full) and os.readlink(full) == entry.get("target")
+            matches = os.path.islink(full) and readlink(full) == entry.get("target")
         else:
             matches = (not os.path.islink(full)) and fingerprint_of(full) == entry.get("fingerprint")
         return "owned-current" if matches else "owned-stale"
 
-    if kind == "symlink" and expected_target is not None and os.path.islink(full) and os.readlink(full) == expected_target:
+    if kind == "symlink" and expected_target is not None and os.path.islink(full) and readlink(full) == expected_target:
         return "legacy-symlink"
     return "conflict"
 
@@ -131,7 +159,7 @@ def record_entry(project, rel_path, kind, source=None):
     full = os.path.join(project, rel_path)
     entry = {"kind": kind}
     if kind == "symlink":
-        entry["target"] = os.readlink(full)
+        entry["target"] = readlink(full)
     else:
         entry["fingerprint"] = fingerprint_of(full)
     if source:
@@ -159,7 +187,8 @@ def validate_json_object(path):
     Absent file is fine -- it'll be created."""
     if not os.path.exists(path):
         return
-    content = open(path).read().strip()
+    with open(path, encoding="utf-8") as f:
+        content = f.read().strip()
     if not content:
         return
     try:
@@ -175,7 +204,8 @@ def validate_json_object(path):
 def validate_field_type(path, field, expected_type, type_name):
     if not os.path.exists(path):
         return
-    content = open(path).read().strip()
+    with open(path, encoding="utf-8") as f:
+        content = f.read().strip()
     if not content:
         return
     data = json.loads(content)

@@ -2,13 +2,15 @@
 
 Agent skills for building software: alignment before code, design discipline while writing it, and review before it ships.
 
+This repo also holds **[UnSkilled](apps/unskilled/README.md)**, a minimal desktop app for Windows, macOS, and Linux that runs Claude with these skills built in: the workflow skills sit in its `/` menu, and the agent loads the rest on its own. The skills below work without it, in Claude Code, Codex, OpenCode, Antigravity, or deepseek-harness.
+
 ## How it works
 
 Two things happen independently: **installing** puts the skill files where an agent can find them; **using** them is just working normally and letting the right one fire, or typing one by name.
 
 ### Install
 
-Skills live once, here, and get symlinked into whichever project you point `install.sh` at. Nothing is copied, so a `git pull` in this repo updates every project that has it installed.
+Skills live once, here, and get symlinked into whichever project you point the installer at. Nothing is copied, so a `git pull` in this repo updates every project that has it installed. The installer is standard-library Python (`install.py`, with `install.sh` as a thin wrapper), so it runs the same on Linux, macOS, and Windows.
 
 ```mermaid
 flowchart LR
@@ -48,12 +50,17 @@ cd ~/Documents/skilled
 ./install.sh /path/to/your-project
 ```
 
-With no flags, that installs for all three harnesses (see [Supported harnesses](#supported-harnesses)). Pass one or more of `--claude`, `--opencode`, `--antigravity` to install only for the ones a given project actually uses:
+On Windows, run `python install.py C:\path\to\your-project` instead; every flag below is the same.
+
+With no flags, that installs for Claude Code, OpenCode, and Antigravity (see [Supported harnesses](#supported-harnesses)). Pass one or more of `--claude`, `--opencode`, `--antigravity`, `--codex`, `--dsh` to install only for the ones a given project actually uses:
 
 ```bash
 ./install.sh /path/to/your-project --claude              # Claude Code only
 ./install.sh /path/to/your-project --claude --antigravity # skip OpenCode's opencode.json
+./install.sh /path/to/your-project --codex               # Codex CLI (.agents/skills)
 ```
+
+Driving the project from a harness that serves the user-invoked skills itself (see [HARNESS.md](HARNESS.md))? Add `--model-only` to install just the 15 model-invoked skills; the other 23 then cost no context on any agent.
 
 Per-project, not global: a project you haven't pointed `install.sh` at never sees these skills, and running it against several projects is normal.
 
@@ -63,6 +70,8 @@ Per-project, not global: a project you haven't pointed `install.sh` at never see
 ```
 
 Both are idempotent — safe to re-run after editing a skill, or after `git pull` picks up an update.
+
+Where symlinks aren't available (Windows without Developer Mode, some network drives), each skill is copied instead and the installer says so; re-run it after `git pull` to resync.
 
 By default, every skill is a **symlink** back into this repo — `git pull` here updates every project instantly, but only on the machine that ran the install: a coworker cloning your project gets a dead symlink, since it points at an absolute path on your disk. If the project is shared, add `--vendor` to copy real files in instead:
 
@@ -88,9 +97,12 @@ Every skill here is a plain `SKILL.md` under the open [Agent Skills](https://age
 | :--- | :--- |
 | Claude Code | `<project>/.claude/skills/` (native) |
 | Antigravity (CLI + IDE) | `<project>/.agents/skills/` (native) + `<project>/.agents/skills.json` (its own documented external-registration fallback, since the native scan can miss a symlinked folder) |
+| Codex CLI | `<project>/.agents/skills/` (native). User-invoked skills carry `agents/openai.yaml` with `allow_implicit_invocation: false`, Codex's own way of keeping a skill out of the model's catalog |
+| deepseek-harness | `<project>/.agents/skills/` (native); honors `disable-model-invocation` |
+| Your own harness | `skills.json` + the contract in [HARNESS.md](HARNESS.md) |
 | OpenCode | `<project>/opencode.json`'s `"skills": {"paths": [...]}` entry, written as a belt-and-suspenders addition — current OpenCode (v1.18.30+) also discovers project `.claude/skills`, `.agents/skills`, and `.opencode/{skill,skills}` natively, but this registration still matters for `--opencode`-only symlink installs and for projects with native discovery disabled |
 
-**Two real gaps, not bugs**: `disable-model-invocation` (the field that keeps the 23 user-invoked skills out of the model's own reach) is a Claude Code extension. OpenCode and Antigravity both ignore unrecognized frontmatter keys per the open spec, so on those two harnesses every skill here is model-selectable, including the ones meant to be typed by hand. There is no portable "user-only" field in the standard today.
+**Two real gaps, not bugs**: `disable-model-invocation` (the field that keeps the 23 user-invoked skills out of the model's own reach) is honored by Claude Code and deepseek-harness, and Codex gets the same effect from `agents/openai.yaml`. OpenCode and Antigravity ignore it, so there every skill here is model-selectable, including the ones meant to be typed by hand. There is no portable "user-only" field in the standard today; a harness that follows [HARNESS.md](HARNESS.md) closes the gap by installing with `--model-only` and serving the user-invoked skills itself.
 
 Separately, OpenCode's project-level skill discovery isn't a directory scan at all — it's config-driven (`opencode.json`), which `install.sh` handles automatically, but a hand-edited or `.jsonc` config in that project needs the `skills.paths` entry added by hand (`install.sh` will tell you the exact line if it can't edit it for you). See [tests/MANUAL-CHECKS.md](tests/MANUAL-CHECKS.md).
 
@@ -127,7 +139,7 @@ Separately, OpenCode's project-level skill discovery isn't a directory scan at a
 | :--- | :--- |
 | `implement` `[U]` | Build one ticket from a spec, driving `tdd` at agreed seams, closing with `verify-in-browser` and `review-diff`. |
 | `implement-spec` `[U]` | Build a whole spec on one branch: tickets as a task graph, implementer subagents across the ready frontier, one PR. |
-| `tdd` `[M]` | Red, green, refactor. |
+| `tdd` `[M]` | Red, green, refactor; characterizes untested code before changing it. |
 | `prototype` `[M]` | Throwaway build to answer a design question. |
 | `research` `[M]` | Investigate against primary sources, capture as a cited file. |
 | `diagnose-bug` `[M]` | Build a loop that goes red on the bug, then minimise, hypothesise, instrument, fix. |
@@ -139,6 +151,7 @@ Separately, OpenCode's project-level skill discovery isn't a directory scan at a
 | `code-craft` `[M]` | The senior-engineer judgment ladder: how much to build, cohesion/coupling/Demeter/CQS/composition/fail-fast, naming and function shape, data/system design (async, idempotency, retries, indexing, pagination, transactions), performance/concurrency, and security by default. |
 | `module-design` `[M]` | Deep modules, seams, adapters, SOLID. |
 | `observability` `[M]` | What to log, what to measure, what to trace. |
+| `release-safety` `[M]` | Expand-contract migrations, version skew, flags, and a rollback plan, so a change is safe to deploy and to undo. |
 | `verify-in-browser` `[M]` | Drive the app in a real browser to check a ticket's acceptance criteria, UI, and translations. |
 | `review-diff` `[M]` | Two-axis review of the diff: standards and spec. |
 | `architecture-review` `[U]` | Scan a codebase for deepening opportunities, then work the one you pick. |
@@ -156,18 +169,20 @@ Separately, OpenCode's project-level skill discovery isn't a directory scan at a
 | `teach` `[U]` | Teach a concept across sessions, using the working directory as state. |
 | `write-questionnaire` `[U]` | Turn a decision you cannot make alone into a questionnaire. |
 | `explain-again` `[U]` | Fire it the moment a message does not land. |
-| `git-guardrails` `[U]` | Install a hook that blocks destructive git commands. |
+| `git-guardrails` `[U]` | Install a hook that blocks destructive git, database, and infrastructure commands. |
 | `setup-pre-commit` `[U]` | Scaffold pre-commit hooks. |
 | `resolve-merge-conflicts` `[M]` | Work a merge or rebase hunk by hunk, resolving by intent. |
-| `generate-runbook` `[M]` | Interactive bash script for steps only a human can perform. |
+| `generate-runbook` `[M]` | Interactive script for steps only a human can perform. |
 | `writing-for-agents` `[M]` | How to write skills and `CLAUDE.md`. |
 
 ## Using it effectively
 
-The skills are not a menu you pick from independently — most of the value comes from letting them chain, since each one hands off state to the next (a spec, a ticket, a diff) instead of you re-explaining context every time. Two habits make that work:
+The skills are not a menu you pick from independently — most of the value comes from letting them chain, since each one hands off state to the next (a spec, a ticket, a diff) instead of you re-explaining context every time. Three habits make that work:
 
-1. **Don't skip `/skilled-setup`.** Everything downstream — `/domain-interview`, `/implement`, `/review-diff` — reads `CONTEXT.md` and `ARCHITECTURE.md` for domain terms and constraints. Skip it and those skills either ask you the same questions from scratch or guess.
-2. **Stay in one context window from interview through tickets.** `/domain-interview` → `/write-spec` → `/write-tickets` build on the same reasoning; splitting them across sessions loses the "why" behind each ticket. `/implement` is the one place you *should* start fresh per ticket — that's by design, so each build isn't dragging the whole planning conversation's context with it.
+1. **Size the work before picking a flow.** A change you can describe in one sentence goes straight to `/implement`, which takes its own small-change path. The full interview → spec → tickets flow is for work that needs it; on a one-line fix it costs more than it saves. `/skilled` asks which situation you're in.
+
+2. **Don't skip `/skilled-setup`.** Everything downstream — `/domain-interview`, `/implement`, `/review-diff` — reads `CONTEXT.md` and `ARCHITECTURE.md` for domain terms and constraints. Skip it and those skills either ask you the same questions from scratch or guess.
+3. **Stay in one context window from interview through tickets.** `/domain-interview` → `/write-spec` → `/write-tickets` build on the same reasoning; splitting them across sessions loses the "why" behind each ticket. `/implement` is the one place you *should* start fresh per ticket — that's by design, so each build isn't dragging the whole planning conversation's context with it.
 
 When you don't remember which skill fits, type `/skilled` — it reads your repo's state and tells you.
 

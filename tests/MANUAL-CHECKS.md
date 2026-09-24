@@ -29,9 +29,9 @@ inline the material into another skill.
 
 ## Per-harness install sanity
 
-Run `./install.sh /path/to/project` first, then check inside that project:
+Run `./install.sh /path/to/project` (or `python install.py ...` on Windows) first, then check inside that project:
 
-- **Claude Code**: `/skills` lists all 37; the 23 user-invoked ones are absent
+- **Claude Code**: `/skills` lists all 38; the 23 user-invoked ones are absent
   from auto-invocation but reachable by typing `/<name>`.
 - **OpenCode**: current versions (v1.18.30+) discover project `.claude/skills`,
   `.agents/skills`, and `.opencode/{skill,skills}` natively. `install.sh`
@@ -47,10 +47,23 @@ Run `./install.sh /path/to/project` first, then check inside that project:
   also writes `.agents/skills.json` (Antigravity's own documented mechanism
   for skills outside its default discovery locations) as a belt-and-suspenders
   fix; confirm it's present and points at this repo's `skills/` dir. Because
-  Antigravity ignores `disable-model-invocation`, **all 37** are
+  Antigravity ignores `disable-model-invocation`, **all 38** are
   model-selectable there, including the 23 meant to be user-only elsewhere.
   That's a real gap between harnesses, not a bug in this repo — there is no
   portable "user-only" field in the open Agent Skills spec today.
+- **Codex CLI** (`--codex`): `$` lists the user-invoked skills, but they are
+  absent from the implicit catalog (each carries `agents/openai.yaml` with
+  `allow_implicit_invocation: false`). Ask a trigger prompt from the table
+  above and confirm the matching model-invoked skill loads.
+- **deepseek-harness** (`--dsh`): its skill catalog lists the 15
+  model-invoked skills only; typing `/implement` injects that skill. With
+  `--model-only`, `/implement` is gone from the agent and must come from the
+  harness menu instead (HARNESS.md).
+- **Your own harness**: follow HARNESS.md, install with `--model-only`, and
+  confirm the model sees 15 skills while the menu offers 23.
+- **Windows**: `python install.py <project>` without Developer Mode prints
+  that skills were copied instead of symlinked, and `--uninstall` still
+  leaves the project as it was.
 - Verify the install itself with `python3 tests/validate_skills.py --project /path/to/project`.
 
 ## Setup skill, end to end

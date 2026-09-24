@@ -1,6 +1,6 @@
 ---
 name: code-craft
-description: The senior-engineer judgment ladder. Use when deciding whether to add an abstraction, queue, cache, or dependency; writing or refactoring any function; adding a job, scheduled task, query, migration, or index; code runs in a hot path or a loop over user input; two requests might touch the same state; building a query, command, or path from untrusted input; or code feels tangled, fragile, slow, or over-engineered.
+description: The senior-engineer judgment ladder. Use when deciding whether to add an abstraction, queue, cache, or dependency; writing or refactoring a function; adding a job, query, migration, or index; handling hot paths, shared state, or untrusted input; or when code feels tangled or over-engineered.
 ---
 
 # Code Craft

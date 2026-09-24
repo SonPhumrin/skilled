@@ -16,7 +16,9 @@ The issue tracker and triage label vocabulary should have been provided to you. 
 
 Check with the user that these seams match their expectations.
 
-3. Write the spec using the template below, then publish it to the project issue tracker. Apply the `ready-for-agent` triage label - no need for additional triage.
+3. Decide the spec's **mode**. If the work changes behaviour a running system already has (most work in an existing codebase), write a **change spec**: fill the `## Current Behaviour`, `## Target Behaviour`, and `## Unchanged Behaviour` sections and describe only the delta. A full-system spec written against existing code gets read as a request to build everything it describes again, duplicating what is already there. For new work with nothing to change, drop those three sections.
+
+4. Write the spec using the template below, then publish it to the project issue tracker. Apply the `ready-for-agent` triage label - no need for additional triage.
 
 <spec-template>
 
@@ -28,9 +30,21 @@ The problem that the user is facing, from the user's perspective.
 
 The solution to the problem, from the user's perspective.
 
+## Current Behaviour
+
+(Change spec only.) What the system does today in the area this touches, as observed in code and tests, not as remembered.
+
+## Target Behaviour
+
+(Change spec only.) What it does once this lands. Only the delta.
+
+## Unchanged Behaviour
+
+(Change spec only.) The invariants: behaviour next to the change that must stay exactly as it is. Each one is a regression test candidate.
+
 ## User Stories
 
-A LONG, numbered list of user stories. Each user story should be in the format of:
+A numbered list of user stories. Each user story should be in the format of:
 
 1. As an <actor>, I want a <feature>, so that <benefit>
 
@@ -38,7 +52,7 @@ A LONG, numbered list of user stories. Each user story should be in the format o
 1. As a mobile bank customer, I want to see balance on my accounts, so that I can make better informed decisions about my spending
 </user-story-example>
 
-This list of user stories should be extremely extensive and cover all aspects of the feature.
+Cover every behaviour the feature adds or changes, one story per behaviour, and stop there. A story restating another in different words, or covering behaviour the spec doesn't change, costs the implementer attention and buys nothing. If the list passes about 20 stories, the spec is probably several specs: say so and propose the split.
 
 ## Implementation Decisions
 

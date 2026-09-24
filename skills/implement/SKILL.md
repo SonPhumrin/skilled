@@ -6,6 +6,10 @@ disable-model-invocation: true
 
 Build the work the user pointed you at: a spec, a ticket, or a set of tickets.
 
+## Size the work first
+
+If you could describe the whole diff in one sentence, it is a small change: skip the seam negotiation below, write the one failing test that pins the change (call the Skill tool with "tdd"), make it pass, then go straight to **Closing out**. Say that you are taking the small-change path, so the user can stop you. Everything larger takes the full path.
+
 ## Before writing code
 
 Read what the project already tells you, and say what you found:

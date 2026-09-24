@@ -1,0 +1,495 @@
+{
+  "version": 1,
+  "generatedBy": "tests/validate_skills.py --emit-index",
+  "alwaysOnChars": 3443,
+  "skills": [
+    {
+      "name": "architecture-review",
+      "description": "Scan a codebase for deepening opportunities, present them as a visual HTML report, then interview through whichever one you pick.",
+      "invocation": "user",
+      "calls": [
+        "code-craft",
+        "domain-modeling",
+        "module-design",
+        "requirements-interview"
+      ],
+      "files": [
+        "HTML-REPORT.md",
+        "SKILL.md",
+        "agents/openai.yaml"
+      ],
+      "sha256": "d3284adc956ce60d20b0451f3c2c068fa50b4b303a20d5dc8f6f2a8fd0cf6a28"
+    },
+    {
+      "name": "clarify-requirements",
+      "description": "A relentless interview to sharpen a plan or design before any code is written.",
+      "invocation": "user",
+      "calls": [
+        "requirements-interview"
+      ],
+      "files": [
+        "SKILL.md",
+        "agents/openai.yaml"
+      ],
+      "sha256": "1df4ad244de60568bd22f75600edc8dc748691b86a21fc8bff7cf2303dd3b55b"
+    },
+    {
+      "name": "code-craft",
+      "description": "The senior-engineer judgment ladder. Use when deciding whether to add an abstraction, queue, cache, or dependency; writing or refactoring a function; adding a job, query, migration, or index; handling hot paths, shared state, or untrusted input; or when code feels tangled or over-engineered.",
+      "invocation": "model",
+      "calls": [
+        "module-design",
+        "observability"
+      ],
+      "files": [
+        "SKILL.md",
+        "reference/async-and-jobs.md",
+        "reference/data-and-queries.md",
+        "reference/design-principles.md",
+        "reference/how-much-to-build.md",
+        "reference/naming-and-shape.md",
+        "reference/performance-and-concurrency.md",
+        "reference/security-by-default.md"
+      ],
+      "sha256": "87127a8c33332914fdf40abba80bbe09bd5b274fdc17d7e3eb8a0ce315c3f330"
+    },
+    {
+      "name": "decision-map",
+      "description": "Plan a huge chunk of work (more than one agent session can hold) as a shared map of decision tickets on your issue tracker, and resolve them one at a time until the way to the destination is clear.",
+      "invocation": "user",
+      "compatibility": "Uses subagents for parallel research and prototypes; without them, run those steps inline one at a time.",
+      "calls": [
+        "prototype",
+        "research"
+      ],
+      "files": [
+        "SKILL.md",
+        "agents/openai.yaml"
+      ],
+      "sha256": "a3cee5f0b53f81aa0ba0af9cf21ed7addf7a003166cf9ddc9717e693b2fe430e"
+    },
+    {
+      "name": "design-doc",
+      "description": "Research and write a pre-spec architecture design doc for work big enough to need one: new-project bootstraps, large features, non-obvious integrations. Saves a local design.md instead of publishing to the issue tracker.",
+      "invocation": "user",
+      "calls": [
+        "module-design",
+        "research"
+      ],
+      "files": [
+        "SKILL.md",
+        "agents/openai.yaml"
+      ],
+      "sha256": "663fdaef5cf6aa185d578327d3779169b1b181b2a1be26b97ec8184f8bf2240a"
+    },
+    {
+      "name": "design-workflows",
+      "description": "Design specs for the recurring workflows you want to automate, in this workspace.",
+      "invocation": "user",
+      "argumentHint": "A workflow to design, or nothing to go find one",
+      "calls": [],
+      "files": [
+        "SKILL.md",
+        "agents/openai.yaml"
+      ],
+      "sha256": "9d5eb6d4b42a9156d93f0c082091a5451712d28e6c051bc1b17d8f7e3b8e656e"
+    },
+    {
+      "name": "diagnose-bug",
+      "description": "Diagnosis loop for hard bugs and performance regressions. Use when the user says \"diagnose\"/\"debug this\", or reports something broken/throwing/failing/slow.",
+      "invocation": "model",
+      "calls": [],
+      "files": [
+        "SKILL.md",
+        "scripts/hitl-loop.template.sh"
+      ],
+      "sha256": "701d4f044db132096588f0710cadc0583f595d9174f2e2841d0cd310ad0b4e97"
+    },
+    {
+      "name": "domain-interview",
+      "description": "A relentless interview to sharpen a plan or design, which also creates docs (ADR's and glossary) as we go.",
+      "invocation": "user",
+      "calls": [],
+      "files": [
+        "SKILL.md",
+        "agents/openai.yaml"
+      ],
+      "sha256": "6b36312b9dede4f95d966083cf31234010bc36766907e9e80ef1aa1ab329c5cb"
+    },
+    {
+      "name": "domain-modeling",
+      "description": "Build and sharpen a project's domain model. Use when discussing codebase terminology, writing or editing a CONTEXT.md, or recording or editing an ADR.",
+      "invocation": "model",
+      "calls": [],
+      "files": [
+        "ADR-FORMAT.md",
+        "CONTEXT-FORMAT.md",
+        "SKILL.md"
+      ],
+      "sha256": "9cbda7943fb10b9bb8b673d20040be0f396f513ae4dd80a285048dd795bb8871"
+    },
+    {
+      "name": "enforce-module-boundaries",
+      "description": "Wire dependency-cruiser into a TypeScript repo so each package is a deep module, reachable only through its entry-point files.",
+      "invocation": "user",
+      "calls": [
+        "module-design"
+      ],
+      "files": [
+        "SKILL.md",
+        "agents/openai.yaml",
+        "dependency-cruiser.config.cjs"
+      ],
+      "sha256": "f92b337e0be2cd079352fb1c6f1e374668947fb9f0f603bf97c7bfc88856bcb9"
+    },
+    {
+      "name": "explain-again",
+      "description": "Stop. That last message did not land: re-pitch it.",
+      "invocation": "user",
+      "calls": [],
+      "files": [
+        "SKILL.md",
+        "agents/openai.yaml"
+      ],
+      "sha256": "1dd17065423a9dd77541864abc9f08359bab4f6b822500afe3a48e4eb237c77c"
+    },
+    {
+      "name": "generate-runbook",
+      "description": "Generate an interactive runbook script that walks a human through steps only they can perform: provisioning infrastructure, credentials or CI secrets, an unfamiliar third-party dashboard, or a one-off migration or cutover. Not for steps the agent can perform itself.",
+      "invocation": "model",
+      "calls": [],
+      "files": [
+        "SKILL.md",
+        "template.sh"
+      ],
+      "sha256": "804036e980dd2ae2bfd277e3d58dbdeb1fdad7c8685b68cab4f3f0654f1ec919"
+    },
+    {
+      "name": "git-guardrails",
+      "description": "Install hooks that block destructive git, database, and infrastructure commands before they run.",
+      "invocation": "user",
+      "calls": [],
+      "files": [
+        "SKILL.md",
+        "agents/openai.yaml",
+        "scripts/block-dangerous-git.py"
+      ],
+      "sha256": "3fad59bc7d1dce984835451400b7884e120021977fbf764d0f342a7bae7608e0"
+    },
+    {
+      "name": "handoff",
+      "description": "Compact the current conversation into a handoff document for another agent to pick up.",
+      "invocation": "user",
+      "argumentHint": "What will the next session be used for?",
+      "calls": [],
+      "files": [
+        "SKILL.md",
+        "agents/openai.yaml"
+      ],
+      "sha256": "5ce9468dd690012c73349b52d3b1713dd68a7721d810907783f5ecaae9b5dc52"
+    },
+    {
+      "name": "handoff-to-agent",
+      "description": "Hand the current conversation off to a fresh background agent that picks up the work immediately.",
+      "invocation": "user",
+      "argumentHint": "What will the next session be used for?",
+      "compatibility": "Needs a harness that can start a background agent (e.g. claude --bg); otherwise use /handoff.",
+      "calls": [],
+      "files": [
+        "SKILL.md",
+        "agents/openai.yaml"
+      ],
+      "sha256": "e12093355cbb123854f772a581f15c55ec3b09cea9d25ec437af99221fcdf016"
+    },
+    {
+      "name": "implement",
+      "description": "Build the work described by a spec or set of tickets, test-first at agreed seams, reviewed before commit.",
+      "invocation": "user",
+      "calls": [
+        "requirements-interview",
+        "review-diff",
+        "tdd",
+        "verify-in-browser"
+      ],
+      "files": [
+        "SKILL.md",
+        "agents/openai.yaml"
+      ],
+      "sha256": "e4efbec2b5895a55b2c512659bff3cd89e87e08fcacb1823ce79dfb21e0965f7"
+    },
+    {
+      "name": "implement-spec",
+      "description": "Implement a whole spec on one branch: works the tickets as a task graph, running implementer subagents across the ready frontier, and lands one PR.",
+      "invocation": "user",
+      "compatibility": "Needs a harness with parallel subagents and git worktrees; without them, run /implement per ticket instead.",
+      "calls": [
+        "review-diff"
+      ],
+      "files": [
+        "SKILL.md",
+        "agents/openai.yaml"
+      ],
+      "sha256": "7aa290a5bbc09591a5312342a0be236277149a21271e5abedc238b3aec7650ac"
+    },
+    {
+      "name": "module-design",
+      "description": "Designing deep modules: small interfaces, clean seams, SOLID applied. Use when designing or restructuring a module's interface, deciding where a boundary goes, making code testable or easier for an agent to navigate, choosing between two structures, or when another skill needs that vocabulary.",
+      "invocation": "model",
+      "calls": [
+        "code-craft"
+      ],
+      "files": [
+        "DEEPENING.md",
+        "DESIGN-IT-TWICE.md",
+        "SKILL.md"
+      ],
+      "sha256": "bdc1d28a6c622a0abc0ff0b8fb16b45a0aafe4f1d7be8ffb1d00618b1dc0c2c7"
+    },
+    {
+      "name": "observability",
+      "description": "Logging, metrics, tracing, and alerts. Use when adding logging to new code, when an incident was hard to debug after the fact, when setting up or changing monitoring and alerts, or when the user asks how they would know something is broken.",
+      "invocation": "model",
+      "calls": [
+        "module-design"
+      ],
+      "files": [
+        "SKILL.md"
+      ],
+      "sha256": "8438f96265b2f2bec26b719550bbf17794574747ecbaa78ef227553003df668a"
+    },
+    {
+      "name": "prototype",
+      "description": "Build a throwaway prototype to answer a design question. Use when the user wants to sanity-check whether a state model or logic feels right, or explore what a UI should look like.",
+      "invocation": "model",
+      "calls": [],
+      "files": [
+        "LOGIC.md",
+        "SKILL.md",
+        "UI.md"
+      ],
+      "sha256": "ae3834b0222c2b8b73221907bc9259f8a99274fca2ca9536afb0ae51d5151feb"
+    },
+    {
+      "name": "release-safety",
+      "description": "Make a change safe to deploy and to undo. Use when a change touches a database schema or migration, environment or deploy config, a public API or wire format, or a feature flag, or when the user asks whether something is safe to ship or how to roll it back.",
+      "invocation": "model",
+      "calls": [
+        "generate-runbook",
+        "observability"
+      ],
+      "files": [
+        "SKILL.md"
+      ],
+      "sha256": "d6dc0d4087d81e21b876b870ebc099d259d1557f54690f85fbb15e0ec333a4c5"
+    },
+    {
+      "name": "requirements-interview",
+      "description": "Interview the user relentlessly about a plan, decision, or idea until every branch resolves. Use when the user wants their thinking stress-tested, asks to be questioned about a design, says a plan feels underspecified, or when another skill needs shared understanding before acting.",
+      "invocation": "model",
+      "calls": [],
+      "files": [
+        "SKILL.md"
+      ],
+      "sha256": "4ec66d505199bbed48fbbdef7c433c7511284a4a579a21a118f42f3432d066bf"
+    },
+    {
+      "name": "research",
+      "description": "Investigate a question against high-trust primary sources and capture the findings as a Markdown file in the repo. Use when the user wants a topic researched, docs or API facts gathered, or reading legwork delegated to a background agent.",
+      "invocation": "model",
+      "compatibility": "Works best with a background agent; without one, do the research inline.",
+      "calls": [],
+      "files": [
+        "SKILL.md"
+      ],
+      "sha256": "f3a545b88711a1ae9fa5a8caedcc829ec4fcbd7d2e7db003db912e933eca0eb5"
+    },
+    {
+      "name": "resolve-merge-conflicts",
+      "description": "Use when you need to resolve an in-progress git merge/rebase conflict.",
+      "invocation": "model",
+      "calls": [],
+      "files": [
+        "SKILL.md"
+      ],
+      "sha256": "091c0de9138eba8825281365567cc4a8b19c28dae129ad0500e12b1a455c6ec4"
+    },
+    {
+      "name": "retro",
+      "description": "Review a finished session and propose improvements to the agent environment: navigation, automated checks, coding standards, tooling.",
+      "invocation": "user",
+      "calls": [
+        "writing-for-agents"
+      ],
+      "files": [
+        "SKILL.md",
+        "agents/openai.yaml"
+      ],
+      "sha256": "814f937f6fecf8adba2263d828dca258d0fb93551cdddf86d4bceb1d84f765b0"
+    },
+    {
+      "name": "review-diff",
+      "description": "Review changes since a fixed point (commit, branch, tag, or merge-base) on two axes, Standards and Spec, in parallel sub-agents reported side by side. Use when the user wants a branch, PR, or work in progress reviewed, or asks to \"review since X\".",
+      "invocation": "model",
+      "calls": [
+        "code-craft",
+        "release-safety"
+      ],
+      "files": [
+        "SKILL.md"
+      ],
+      "sha256": "87ab76da6a4eea75e0b0ef430a357ba69740e6a5b7f339eb252af386c0d51942"
+    },
+    {
+      "name": "setup-pre-commit",
+      "description": "Scaffold pre-commit hooks: formatting, type checking, and tests before each commit.",
+      "invocation": "user",
+      "calls": [],
+      "files": [
+        "SKILL.md",
+        "agents/openai.yaml"
+      ],
+      "sha256": "bb133007b4c2b6b147a27b433e549eb3d21eacddd9b7609e1a72cd15f9eb7533"
+    },
+    {
+      "name": "skilled",
+      "description": "Which skill fits your situation. A router over everything in the skilled set.",
+      "invocation": "user",
+      "calls": [],
+      "files": [
+        "PHASE-BOUNDARIES.md",
+        "SKILL.md",
+        "agents/openai.yaml"
+      ],
+      "sha256": "04db0ac264abd9a2934f0464feb8dba839430991c9e060e9b769e936ef1d50a3"
+    },
+    {
+      "name": "skilled-setup",
+      "description": "Configure this repository for the skilled skills - issue tracker, triage labels, and the CONTEXT / ARCHITECTURE / ADR documents. Run once per repo.",
+      "invocation": "user",
+      "calls": [],
+      "files": [
+        "SKILL.md",
+        "adr-template.md",
+        "agents/openai.yaml",
+        "architecture-template.md",
+        "context-template.md",
+        "domain.md",
+        "issue-tracker-forgejo.md",
+        "issue-tracker-github.md",
+        "issue-tracker-gitlab.md",
+        "issue-tracker-local.md",
+        "triage-labels.md"
+      ],
+      "sha256": "b6963168605f69dee8dc07b04c26adc9e70c3819af8d9238eb401b92546b9a77"
+    },
+    {
+      "name": "skilled-update",
+      "description": "Check whether any skill here has changed upstream, and review what changed before deciding whether to fold it in.",
+      "invocation": "user",
+      "calls": [],
+      "files": [
+        "SKILL.md",
+        "agents/openai.yaml",
+        "upstream-map.md"
+      ],
+      "sha256": "cbf699e677b89aad2b446f6278fd75e4aaecd3698a86bdd5ee037b0f9a304850"
+    },
+    {
+      "name": "tdd",
+      "description": "Test-driven development. Use when the user wants to build features or fix bugs test-first, mentions \"red-green-refactor\", wants integration tests, or needs to change untested code safely.",
+      "invocation": "model",
+      "calls": [
+        "module-design"
+      ],
+      "files": [
+        "SKILL.md",
+        "mocking.md",
+        "tests.md"
+      ],
+      "sha256": "a036110d12fabcd89a0d0a1d95912f8614af57c3c3b74fc07a1232f7dd1186ef"
+    },
+    {
+      "name": "teach",
+      "description": "Teach the user a new skill or concept, within this workspace.",
+      "invocation": "user",
+      "argumentHint": "What would you like to learn about?",
+      "calls": [],
+      "files": [
+        "GLOSSARY-FORMAT.md",
+        "LEARNING-RECORD-FORMAT.md",
+        "MISSION-FORMAT.md",
+        "RESOURCES-FORMAT.md",
+        "SKILL.md",
+        "agents/openai.yaml"
+      ],
+      "sha256": "efd1919a2bcc0d2094717f5c2281f66e77c4de649689b0ee4a01dbb1d6c18631"
+    },
+    {
+      "name": "triage",
+      "description": "Move issues and external PRs through a state machine of triage roles, categorise, verify, interview if needed, and write agent-ready briefs.",
+      "invocation": "user",
+      "calls": [],
+      "files": [
+        "AGENT-BRIEF.md",
+        "OUT-OF-SCOPE.md",
+        "SKILL.md",
+        "agents/openai.yaml"
+      ],
+      "sha256": "661efde813905161df2e90e4de6781b76ce7fb41d14bdbf7792ad9d237981625"
+    },
+    {
+      "name": "verify-in-browser",
+      "description": "Drive the running app in a real browser to check the current ticket's acceptance criteria: the flow works, the UI renders right, translated copy shows real strings. Use after implementing and before static review, or when asked to \"check this in the browser\" or \"verify the UI\".",
+      "invocation": "model",
+      "calls": [],
+      "files": [
+        "SKILL.md"
+      ],
+      "sha256": "811f0b50ef3e0d62958a0a9b29db97395ea663be75e6e13c8938d6e446ff0264"
+    },
+    {
+      "name": "write-questionnaire",
+      "description": "Turn a decision you can't fully answer into a questionnaire for someone else to fill in.",
+      "invocation": "user",
+      "calls": [],
+      "files": [
+        "SKILL.md",
+        "agents/openai.yaml"
+      ],
+      "sha256": "7a6c6e849026a6cac8de86c294b081e664f7740cbdf9d5e8502a18f222892f4d"
+    },
+    {
+      "name": "write-spec",
+      "description": "Turn the current conversation into a spec and publish it to the project issue tracker: no interview, just synthesis of what you've already discussed.",
+      "invocation": "user",
+      "calls": [],
+      "files": [
+        "SKILL.md",
+        "agents/openai.yaml"
+      ],
+      "sha256": "b466cac7e9911559f2763941ed653bae409dad3121cfc6338b42bb4367fb753e"
+    },
+    {
+      "name": "write-tickets",
+      "description": "Break a plan, spec, or the current conversation into a set of tracer-bullet tickets, each declaring its blocking edges, published to the configured tracker (edges as text in one file per ticket locally, or native blocking links on a real tracker).",
+      "invocation": "user",
+      "calls": [],
+      "files": [
+        "SKILL.md",
+        "agents/openai.yaml"
+      ],
+      "sha256": "d0b10bccdf98465e5eccdd5b44ddd78cc197721c2f7c1ca85a4624b060496247"
+    },
+    {
+      "name": "writing-for-agents",
+      "description": "Writing documents for agents. Use when creating or editing skills, or modifying AGENTS.md or CLAUDE.md.",
+      "invocation": "model",
+      "calls": [],
+      "files": [
+        "SKILL-MECHANICS.md",
+        "SKILL.md"
+      ],
+      "sha256": "764d178582565c68b7e3a805e041960a0c798c63bb62898f5f04757cb23ece6c"
+    }
+  ]
+}
