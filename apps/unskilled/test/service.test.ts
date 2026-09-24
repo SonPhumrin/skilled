@@ -4,7 +4,7 @@ import type { LiveUpdate } from "../src/shared/types";
 import type { AgentDriver, TurnInput } from "../src/main/agents/types";
 import { Store } from "../src/main/db";
 import { Service, titleFrom } from "../src/main/service";
-import { catalog, tempDir } from "./helpers";
+import { catalog, closeAfter, tempDir } from "./helpers";
 
 function fakeDriver(script: (input: TurnInput) => Promise<void>): AgentDriver & { prompts: string[] } {
   const prompts: string[] = [];
@@ -23,6 +23,7 @@ function fakeDriver(script: (input: TurnInput) => Promise<void>): AgentDriver & 
 
 function setup(script: (input: TurnInput) => Promise<void>) {
   const store = new Store(join(tempDir(), "t.db"));
+  closeAfter(() => store.close());
   const updates: LiveUpdate[] = [];
   const driver = fakeDriver(script);
   const service = new Service(store, catalog(), driver, (u) => updates.push(u));
