@@ -18,7 +18,7 @@ Prompt-driven, not a script. Explore, present what you found, confirm, then writ
 
 Read the repo. Assume nothing:
 
-- `git remote -v`: is this GitHub, GitLab, or neither?
+- `git remote -v`: is this GitHub, GitLab, Forgejo/Gitea, or none of them? A self-hosted host is Forgejo/Gitea when `https://<host>/api/v1/version` answers with a JSON `version`.
 - `AGENTS.md` and `CLAUDE.md` at the root: does either exist, and does either already carry an `## Agent skills` section?
 - `CONTEXT.md`, `ARCHITECTURE.md`, `docs/adr/`, `docs/agents/`: does prior output already exist?
 - `.scratch/`: a sign a local-markdown tracker convention is already in use
@@ -43,16 +43,17 @@ Ask the user for exactly two things here: the constraints that are real (scale, 
 
 Also copy [adr-template.md](adr-template.md) to `docs/adr/0000-template.md`.
 
-**Section B: issue tracker.** Where issues live. `write-tickets`, `triage`, and `write-spec` read from and write to it, and need to know whether to call `gh issue create`, write a file under `.scratch/`, or follow a workflow you describe.
+**Section B: issue tracker.** Where issues live. `write-tickets`, `triage`, and `write-spec` read from and write to it, and need to know whether to call `gh issue create` or `tea issue create`, write a file under `.scratch/`, or follow a workflow you describe.
 
-If a remote points at GitHub, propose GitHub. If GitLab, propose GitLab. Otherwise offer:
+If a remote points at GitHub, propose GitHub. If GitLab, propose GitLab. If Forgejo or Gitea (Codeberg included), propose Forgejo/Gitea. Otherwise offer:
 
 - **GitHub**: GitHub Issues, via the `gh` CLI
 - **GitLab**: GitLab Issues, via the `glab` CLI
+- **Forgejo / Gitea**: Forgejo or Gitea Issues, via the `tea` CLI or the REST API
 - **Local markdown**: files under `.scratch/<feature>/`, good for solo projects and repos with no remote
 - **Other** (Jira, Linear, and so on): ask for a one-paragraph description of the workflow and record it as prose
 
-Record the choice in `docs/agents/issue-tracker.md` from the matching seed: [issue-tracker-github.md](issue-tracker-github.md), [issue-tracker-gitlab.md](issue-tracker-gitlab.md), [issue-tracker-local.md](issue-tracker-local.md). The GitHub and GitLab seeds carry a "PRs as a request surface" flag, defaulted off. Leave it off and do not raise it.
+Record the choice in `docs/agents/issue-tracker.md` from the matching seed: [issue-tracker-github.md](issue-tracker-github.md), [issue-tracker-gitlab.md](issue-tracker-gitlab.md), [issue-tracker-forgejo.md](issue-tracker-forgejo.md), [issue-tracker-local.md](issue-tracker-local.md). For Forgejo/Gitea, replace every `<host>` with the remote's host and `<login-name>` with a short name for the `tea` login. The GitHub, GitLab, and Forgejo/Gitea seeds carry a "PRs as a request surface" flag, defaulted off. Leave it off and do not raise it.
 
 **Section C: triage labels.** Skip entirely if `triage` is not installed.
 
