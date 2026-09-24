@@ -1,6 +1,6 @@
 ---
 name: requirements-interview
-description: Interview the user relentlessly about a plan, decision, or idea until every branch resolves. Use when the user wants their thinking stress-tested, asks to be interviewed or questioned about a design, says a plan feels underspecified, or when another skill needs to reach shared understanding before acting.
+description: Interview the user relentlessly about a plan, decision, or idea until every branch resolves. Use when the user wants their thinking stress-tested, asks to be questioned about a design, says a plan feels underspecified, or when another skill needs shared understanding before acting.
 ---
 
 Interview the user relentlessly until you reach shared understanding. Map the work as a **design tree**: every decision branches into the decisions that hang off it.

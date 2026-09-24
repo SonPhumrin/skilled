@@ -1,6 +1,7 @@
 ---
 name: implement-spec
 description: Implement a whole spec on one branch: works the tickets as a task graph, running implementer subagents across the ready frontier, and lands one PR.
+compatibility: "Needs a harness with parallel subagents and git worktrees; without them, run /implement per ticket instead."
 disable-model-invocation: true
 ---
 
@@ -22,9 +23,11 @@ Communication to and from subagents should be sparse. Communicate primarily thro
 
 3. Create a branch, and a draft PR. The PR should be marked as 'closing' the spec issue and tickets.
 
-4. Use **implementer subagents** to implement each ticket. Each implementer subagent should work in its own worktree, on its own branch.
+4. Use **implementer subagents** to implement each ticket. Each implementer subagent should work in its own worktree, on its own branch. Never run two tickets at once whose **Touches** overlap: an overlap with no blocking edge between them is a merge conflict scheduled in advance, so hold the second until the first is merged. Each worktree needs its own dependency install before its tests can run.
 
-5. Once an **implementer subagent** completes, merge its work to the PR branch with a **merger subagent**.
+5. Once an **implementer subagent** completes, merge its work to the PR branch with a **merger subagent**, which then runs the test suite on the PR branch. A red suite after a merge is fixed before the next merge lands, while the cause is still one merge wide.
+
+   Keep a progress file for the run, in a gitignored scratch location (for example `.scratch/<spec-slug>/progress.md`): tickets done, in flight, and next; decisions made along the way; the test and typecheck commands. Update it after every merge. If the session is compacted or handed off, the next one resumes from this file instead of from memory.
 
 6. If this changes the **frontier** of available tickets, kick off more **implementer subagents** to work on the new tickets. This allows for maximum concurrency.
 

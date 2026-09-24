@@ -1,6 +1,7 @@
 ---
 name: decision-map
 description: Plan a huge chunk of work (more than one agent session can hold) as a shared map of decision tickets on your issue tracker, and resolve them one at a time until the way to the destination is clear.
+compatibility: "Uses subagents for parallel research and prototypes; without them, run those steps inline one at a time."
 disable-model-invocation: true
 ---
 

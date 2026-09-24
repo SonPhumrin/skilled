@@ -9,17 +9,20 @@ the patched, tokenized version gets it right.
 import json
 import os
 import subprocess
+import sys
 import unittest
 
 SCRIPT = os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-    "skills", "git-guardrails", "scripts", "block-dangerous-git.sh",
+    "skills", "git-guardrails", "scripts", "block-dangerous-git.py",
 )
 
 
-def run(command):
-    payload = json.dumps({"tool_input": {"command": command}})
-    result = subprocess.run(["bash", SCRIPT], input=payload, capture_output=True, text=True)
+def run(command, tool_name="Bash"):
+    # Claude Code sends tool_name "Bash"; deepseek-harness's Claude Code hooks
+    # plugin sends "bash" (or "pwsh" on Windows). Same tool_input.command.
+    payload = json.dumps({"tool_name": tool_name, "tool_input": {"command": command}})
+    result = subprocess.run([sys.executable, SCRIPT], input=payload, capture_output=True, text=True)
     return result.returncode, result.stderr
 
 
@@ -56,8 +59,35 @@ class TestMustBlock(unittest.TestCase):
         self.assert_blocked("echo hi && git push")
 
     def test_malformed_json_fails_closed(self):
-        result = subprocess.run(["bash", SCRIPT], input="not valid json", capture_output=True, text=True)
+        result = subprocess.run([sys.executable, SCRIPT], input="not valid json", capture_output=True, text=True)
         self.assertEqual(result.returncode, 2)
+
+    def test_dsh_style_payload(self):
+        for tool_name in ("bash", "pwsh"):
+            code, _ = run("git push", tool_name=tool_name)
+            self.assertEqual(code, 2)
+
+    def test_quoted_global_option_and_exe(self):
+        self.assert_blocked('git -C "my repo" push')
+        self.assert_blocked("git.exe push")
+
+    def test_branch_delete_force_long_form(self):
+        self.assert_blocked("git branch --delete --force feature")
+
+    def test_destructive_database_and_infra(self):
+        for command in (
+            "terraform destroy -auto-approve",
+            "terraform apply -destroy",
+            "npx prisma migrate reset --force",
+            "bin/rails db:drop",
+            "bundle exec rake db:reset",
+            "dropdb app_production",
+            "docker volume rm app_data",
+            "kubectl delete ns staging",
+            'psql "$DATABASE_URL" -c "DROP TABLE users"',
+            "mysql -e 'truncate table orders'",
+        ):
+            self.assert_blocked(command)
 
 
 class TestMustAllow(unittest.TestCase):
@@ -82,6 +112,22 @@ class TestMustAllow(unittest.TestCase):
 
     def test_log(self):
         self.assert_allowed("git log --oneline")
+
+    def test_safe_database_and_infra(self):
+        for command in (
+            "terraform plan",
+            "npx prisma migrate dev",
+            "bin/rails db:migrate",
+            "psql -c 'select * from users'",
+            "grep -rn 'DROP TABLE' migrations/",
+            "docker volume ls",
+        ):
+            self.assert_allowed(command)
+
+    def test_missing_command_field(self):
+        result = subprocess.run([sys.executable, SCRIPT], input=json.dumps({"tool_input": {}}),
+                                capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0)
 
 
 if __name__ == "__main__":

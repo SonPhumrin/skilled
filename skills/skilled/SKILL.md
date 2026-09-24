@@ -15,6 +15,15 @@ Before routing, check and say in two lines:
 - Do `CONTEXT.md` and `ARCHITECTURE.md` exist? If not, the answer is `/skilled-setup`, and say so before anything else.
 - If `ARCHITECTURE.md` exists, read its **Constraints** and **Non-goals** and state the design posture for this session: build the direct version, and justify any new infrastructure against a named constraint.
 
+## Then, name the situation
+
+Ask which of these it is, if the user hasn't said. Each needs a different amount of process, and the full flow on a small change is wasted work:
+
+- **A small change** you could describe in one sentence → **`/implement`** directly; it takes its own small-change path.
+- **New work in a new or existing project** → the main flow below. In an existing codebase, `/write-spec` writes a change spec (current, target, and unchanged behaviour) rather than describing the system from scratch.
+- **Refactoring existing code** → `/architecture-review` to pick the target, then the main flow. Where the code has no tests, `tdd` characterizes current behaviour before anything changes.
+- **Getting a change out safely** → the `release-safety` skill fires on its own for migrations, config, public APIs, and flags; ask for it directly before a risky deploy.
+
 ## The main flow: idea to shipped
 
 The route most work travels.
@@ -56,6 +65,7 @@ These are model-invoked, so they fire on their own. Named here so you know what 
 **Domain-specific:**
 
 - `observability` - what to log, measure, and trace.
+- `release-safety` - expand-contract migrations, version skew, flags, and rollback, so a change is safe to deploy and to undo.
 
 **Process:**
 

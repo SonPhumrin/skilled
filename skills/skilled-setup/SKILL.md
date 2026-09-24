@@ -99,6 +99,10 @@ Domain language in `CONTEXT.md`. Runtime shape, constraints, and non-goals in `A
 ### Domain docs
 
 [single-context or multi-context]. See `docs/agents/domain.md`.
+
+### Compaction
+
+When compacting, keep the current ticket or spec, every file modified so far, and the test and typecheck commands.
 ```
 
 Include the triage sub-block, and write `docs/agents/triage-labels.md`, only when section C ran.

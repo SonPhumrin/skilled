@@ -1,6 +1,6 @@
 ---
 name: tdd
-description: Test-driven development. Use when the user wants to build features or fix bugs test-first, mentions "red-green-refactor", or wants integration tests.
+description: Test-driven development. Use when the user wants to build features or fix bugs test-first, mentions "red-green-refactor", wants integration tests, or needs to change untested code safely.
 ---
 
 # Test-Driven Development
@@ -24,6 +24,16 @@ A **seam** is the public boundary you test at: the interface where you observe b
 Ask: "What's the public interface, and which seams should we test?"
 
 When the shape of that interface is itself in question (how deep the module is, where the seam belongs, what the interface should expose), call the Skill tool with "module-design" for the vocabulary. It is the shared source of the module, interface, depth, seam, adapter, leverage and locality terms, and it is a reference to consult, not a session to run.
+
+## Untested code: characterize first
+
+When the code you need to change has no tests at the seam, you cannot run red → green against it yet: there is nothing to tell you whether the change broke something else. Before changing it, pin what it **does today**, not what it should do:
+
+1. Write a test at the seam that asserts a deliberately wrong value, run it, and copy the actual output into the assertion. Repeat for each behaviour next to the change, including the odd ones: current behaviour is the oracle, bugs included.
+2. If the code can't be reached from a seam without editing it, make the smallest edit that creates one (extract a function, pass a dependency in) and nothing else in that step.
+3. Commit the characterization tests on their own, green, before any behaviour change. Then run the normal loop for the change itself.
+
+Keep refactoring and behaviour change in separate commits. A commit that does both can't be checked against the characterization tests: when one goes red, nothing says which half broke it.
 
 ## Anti-patterns
 

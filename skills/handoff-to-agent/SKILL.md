@@ -1,13 +1,14 @@
 ---
 name: handoff-to-agent
 description: Hand the current conversation off to a fresh background agent that picks up the work immediately.
+compatibility: "Needs a harness that can start a background agent (e.g. claude --bg); otherwise use /handoff."
 argument-hint: "What will the next session be used for?"
 disable-model-invocation: true
 ---
 
-Write a handoff summary of the current conversation so a fresh agent can continue the work. Instead of saving it, launch a background agent seeded with the summary as its prompt: `claude --bg --name "<descriptive name>" "<handoff summary>"`. It starts in the current working directory and returns immediately; the user manages it with `claude agents`.
+Write a handoff summary of the current conversation so a fresh agent can continue the work. Instead of saving it, launch a background agent seeded with the summary as its prompt, in the current working directory, and return immediately. Use the harness's own background-agent launcher; on Claude Code that is `claude --bg --name "<descriptive name>" "<handoff summary>"`, and the user manages it with `claude agents`. If the harness has no way to start a background agent, say so and fall back to `/handoff`'s file.
 
-Always pass `-n`/`--name` with a descriptive name (e.g. `--name "Fix login bug"`); it sets the display name shown in the job list, session picker, and terminal title.
+Always give the agent a descriptive name (e.g. `--name "Fix login bug"`); it is what the user sees in the job list, session picker, and terminal title.
 
 Include a "suggested skills" section in the summary, naming which skills the next agent should call the Skill tool for.
 

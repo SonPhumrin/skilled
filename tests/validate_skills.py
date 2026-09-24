@@ -30,6 +30,11 @@ KNOWN_FIELDS = {
     "hooks", "paths", "shell", "metadata", "license", "compatibility",
 }
 DESCRIPTION_CAP = 1024  # the portable Agent Skills spec limit (agentskills.io/specification)
+# A model-invoked skill's name + description sits in every session's context
+# on every harness, so it gets a much tighter budget than the spec's cap.
+MODEL_DESCRIPTION_CAP = 300
+ALWAYS_ON_BUDGET = 3600  # sum of name + description over all model-invoked skills
+INDEX_FILE = REPO / "skills.json"
 
 # The portable Agent Skills field set (agentskills.io). Everything else in
 # KNOWN_FIELDS is a harness extension, and costs portability: claude.ai and
@@ -54,8 +59,21 @@ def warn(msg):
     warnings.append(msg)
 
 
+def unquote(raw):
+    """A YAML scalar as written on one line: double-quoted (JSON-compatible
+    escapes), single-quoted ('' is a literal '), or plain."""
+    if len(raw) >= 2 and raw[0] == raw[-1] == '"':
+        try:
+            return json.loads(raw)
+        except json.JSONDecodeError:
+            return raw[1:-1]
+    if len(raw) >= 2 and raw[0] == raw[-1] == "'":
+        return raw[1:-1].replace("''", "'")
+    return raw
+
+
 def parse_frontmatter(path):
-    lines = path.read_text().split("\n")
+    lines = path.read_text(encoding="utf-8").split("\n")
     if not lines or lines[0] != "---":
         fail(f"{path}: no frontmatter (must open with '---' on line 1)")
         return None, None
@@ -72,7 +90,7 @@ def parse_frontmatter(path):
         if not m:
             fail(f"{path}: unparseable frontmatter line: {ln!r}")
             continue
-        fields[m.group(1)] = m.group(2).strip().strip('"')
+        fields[m.group(1)] = unquote(m.group(2).strip())
     body = "\n".join(lines[end + 1:])
     return fields, body
 
@@ -116,8 +134,21 @@ def check_frontmatter():
 
         if fields.get("disable-model-invocation", "").lower() == "true":
             user_invoked.add(d.name)
+        elif len(fields.get("description", "")) > MODEL_DESCRIPTION_CAP:
+            fail(f"{d.name}: model-invoked description is "
+                 f"{len(fields['description'])} chars, over the "
+                 f"{MODEL_DESCRIPTION_CAP}-char cap -- it is in context in every "
+                 f"session, so put the key trigger first and cut the rest "
+                 f"(CONVENTIONS.md)")
 
         names[d.name] = fields
+
+    always_on = sum(len(n) + len(f.get("description", ""))
+                    for n, f in names.items() if n not in user_invoked)
+    if always_on > ALWAYS_ON_BUDGET:
+        warn(f"model-invoked skills put {always_on} chars of name + description "
+             f"in every session's context, over the {ALWAYS_ON_BUDGET}-char budget "
+             f"(CONVENTIONS.md)")
     return names, user_invoked
 
 
@@ -128,7 +159,7 @@ def check_cross_references(known_names):
     """Every 'Skill tool with "x"'/`x` and bare /x mention must name a real skill."""
     ignore = {"settings", "users", "skill", "name", "clear", "compact", "review"}
     for f in sorted(SKILLS_DIR.rglob("*.md")):
-        s = f.read_text()
+        s = f.read_text(encoding="utf-8")
         refs = set(re.findall(SKILL_CALL_RE, s))
         refs |= set(re.findall(r'(?:^|[\s(`*])/([a-z][a-z0-9-]{3,})\b', s))
         for r in refs - known_names - ignore:
@@ -140,7 +171,7 @@ def check_invocation_invariant(user_invoked, known_names):
     user-invoked skill: it carries no description, so the agent cannot fire it
     and the call silently does nothing (CONVENTIONS.md)."""
     for f in sorted(SKILLS_DIR.rglob("*.md")):
-        s = f.read_text()
+        s = f.read_text(encoding="utf-8")
         for target in sorted(set(re.findall(SKILL_CALL_RE, s))):
             if target in user_invoked:
                 fail(f"{f.relative_to(REPO)}: calls user-invoked skill "
@@ -170,7 +201,7 @@ def check_no_relative_skill_links(known_names):
     for f in sorted(SKILLS_DIR.rglob("*.md")):
         if f.parent == SKILLS_DIR:
             continue
-        text = f.read_text()
+        text = f.read_text(encoding="utf-8")
         for m in re.finditer(r"\]\((\.\./[^)]+)\)", text):
             fail(f"{f.relative_to(REPO)}: relative cross-skill link {m.group(1)!r} "
                  f"(should be a Skill tool call instead)")
@@ -208,7 +239,7 @@ def check_single_source_of_truth():
             # reference/*.md files (progressive disclosure), so check the
             # whole skill directory, not just the entry-point file.
             body = "\n".join(
-                f.read_text() for f in (SKILLS_DIR / name).rglob("*.md")
+                f.read_text(encoding="utf-8") for f in (SKILLS_DIR / name).rglob("*.md")
             )
             # A one-line pointer ("call the Skill tool with ...") that merely
             # names the term to redirect elsewhere is not a duplication; only
@@ -247,7 +278,7 @@ def _check_skill_entry(project_path, target, name, install_kind):
     # Not a symlink: only valid if it's a --vendor copy of this exact skill.
     skill_md = entry / "SKILL.md"
     source_dir = SKILLS_DIR / name
-    if not skill_md.is_file() or f"name: {name}" not in skill_md.read_text():
+    if not skill_md.is_file() or f"name: {name}" not in skill_md.read_text(encoding="utf-8"):
         warn(f"{target}/{name} exists but is neither a symlink to this repo "
              f"nor a vendored copy of it")
         return
@@ -304,7 +335,7 @@ def check_install_state(project_path):
              f"Antigravity may not discover these skills without it")
     else:
         try:
-            data = json.loads(skills_json.read_text() or "{}")
+            data = json.loads(skills_json.read_text(encoding="utf-8") or "{}")
         except json.JSONDecodeError as e:
             fail(f"{skills_json} is not valid JSON: {e}")
         else:
@@ -336,7 +367,7 @@ def check_install_state(project_path):
                  f"belt-and-suspenders fallback")
         else:
             try:
-                data = json.loads(oc_target.read_text() or "{}")
+                data = json.loads(oc_target.read_text(encoding="utf-8") or "{}")
             except json.JSONDecodeError as e:
                 fail(f"{oc_target} is not valid JSON: {e}")
             else:
@@ -344,6 +375,82 @@ def check_install_state(project_path):
                 if not (paths & valid_opencode_paths):
                     warn(f"{oc_target} has no skills.paths entry for this repo "
                          f"(run ./install.sh {project_path})")
+
+
+CODEX_POLICY = "policy:\n  allow_implicit_invocation: false\n"
+
+
+def check_codex_policy(names, user_invoked):
+    """Codex ignores `disable-model-invocation`; it keeps a skill out of its
+    implicit catalog only via agents/openai.yaml. Every user-invoked skill
+    carries one, and no model-invoked skill does."""
+    for name in sorted(names):
+        yaml = SKILLS_DIR / name / "agents" / "openai.yaml"
+        if name in user_invoked:
+            if not yaml.is_file():
+                fail(f"{name}: user-invoked but has no agents/openai.yaml -- Codex "
+                     f"would list it to the model (run tests/validate_skills.py "
+                     f"--emit-index to create it)")
+            elif "allow_implicit_invocation: false" not in yaml.read_text(encoding="utf-8"):
+                fail(f"{name}: agents/openai.yaml must set "
+                     f"policy.allow_implicit_invocation: false")
+        elif yaml.is_file():
+            fail(f"{name}: model-invoked but has agents/openai.yaml -- only "
+                 f"user-invoked skills carry one")
+
+
+def build_index(names, user_invoked):
+    """skills.json: the machine-readable catalog a harness reads instead of
+    parsing SKILL.md (HARNESS.md)."""
+    skills = []
+    for name in sorted(names):
+        d = SKILLS_DIR / name
+        fields = names[name]
+        text = "\n".join(f.read_text(encoding="utf-8") for f in sorted(d.rglob("*.md")))
+        entry = {
+            "name": name,
+            "description": fields.get("description", ""),
+            "invocation": "user" if name in user_invoked else "model",
+        }
+        if "argument-hint" in fields:
+            entry["argumentHint"] = fields["argument-hint"]
+        if "compatibility" in fields:
+            entry["compatibility"] = fields["compatibility"]
+        entry["calls"] = sorted(set(re.findall(SKILL_CALL_RE, text)) - {name})
+        entry["files"] = sorted(
+            p.relative_to(d).as_posix() for p in d.rglob("*") if p.is_file())
+        entry["sha256"] = installer_lib.fingerprint_dir(str(d))
+        skills.append(entry)
+    always_on = sum(len(e["name"]) + len(e["description"])
+                    for e in skills if e["invocation"] == "model")
+    return {
+        "version": 1,
+        "generatedBy": "tests/validate_skills.py --emit-index",
+        "alwaysOnChars": always_on,
+        "skills": skills,
+    }
+
+
+def render_index(index):
+    return json.dumps(index, indent=2, ensure_ascii=False) + "\n"
+
+
+def emit_generated(names, user_invoked):
+    for name in sorted(user_invoked):
+        yaml = SKILLS_DIR / name / "agents" / "openai.yaml"
+        if not yaml.is_file():
+            yaml.parent.mkdir(exist_ok=True)
+            yaml.write_text(CODEX_POLICY, encoding="utf-8", newline="\n")
+    INDEX_FILE.write_text(render_index(build_index(names, user_invoked)),
+                          encoding="utf-8", newline="\n")
+    print(f"wrote {INDEX_FILE.relative_to(REPO)}")
+
+
+def check_index(names, user_invoked):
+    expected = render_index(build_index(names, user_invoked))
+    if not INDEX_FILE.is_file() or INDEX_FILE.read_text(encoding="utf-8") != expected:
+        fail("skills.json is missing or stale -- run "
+             "`python3 tests/validate_skills.py --emit-index` and commit the result")
 
 
 def check_reserved_and_collisions():
@@ -363,6 +470,8 @@ def main():
         project_path = pathlib.Path(args[1]).expanduser().resolve()
 
     names, user_invoked = check_frontmatter()
+    if "--emit-index" in args:
+        emit_generated(names, user_invoked)
     known = set(names)
     check_cross_references(known)
     check_invocation_invariant(user_invoked, known)
@@ -370,6 +479,8 @@ def main():
     check_no_relative_skill_links(known)
     check_single_source_of_truth()
     check_reserved_and_collisions()
+    check_codex_policy(names, user_invoked)
+    check_index(names, user_invoked)
     check_install_state(project_path)
 
     total = len(names)

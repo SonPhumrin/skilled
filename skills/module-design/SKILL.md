@@ -1,6 +1,6 @@
 ---
 name: module-design
-description: Designing deep modules - small interfaces, clean seams, SOLID applied. Use when designing or restructuring a module's interface, deciding where a boundary goes, making code testable or easier for an agent to navigate, choosing between two structures, or when another skill needs the deep-module vocabulary.
+description: "Designing deep modules: small interfaces, clean seams, SOLID applied. Use when designing or restructuring a module's interface, deciding where a boundary goes, making code testable or easier for an agent to navigate, choosing between two structures, or when another skill needs that vocabulary."
 ---
 
 # Module Design

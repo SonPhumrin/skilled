@@ -3,7 +3,7 @@ set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 bash -n install.sh
 if command -v shellcheck >/dev/null 2>&1; then
-  shellcheck install.sh skills/git-guardrails/scripts/block-dangerous-git.sh
+  shellcheck install.sh
 else
   echo "note: shellcheck not installed, skipping shell lint (install it for stricter checks)" >&2
 fi
