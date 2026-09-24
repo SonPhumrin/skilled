@@ -2,6 +2,8 @@
 
 Agent skills for building software: alignment before code, design discipline while writing it, and review before it ships.
 
+This repo also holds **[UnSkilled](apps/unskilled/README.md)**, a minimal desktop app for Windows, macOS, and Linux that runs Claude with these skills built in: the workflow skills sit in its `/` menu, and the agent loads the rest on its own. The skills below work without it, in Claude Code, Codex, OpenCode, Antigravity, or deepseek-harness.
+
 ## How it works
 
 Two things happen independently: **installing** puts the skill files where an agent can find them; **using** them is just working normally and letting the right one fire, or typing one by name.

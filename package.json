@@ -1,0 +1,15 @@
+{
+  "name": "skilled-monorepo",
+  "private": true,
+  "description": "skilled (agent skills, at the repo root) and UnSkilled (the desktop harness, in apps/unskilled).",
+  "packageManager": "pnpm@10.33.0",
+  "scripts": {
+    "dev": "pnpm --filter unskilled dev",
+    "build": "pnpm --filter unskilled build",
+    "typecheck": "pnpm --filter unskilled typecheck",
+    "test": "pnpm --filter unskilled test"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": ["electron", "esbuild"]
+  }
+}

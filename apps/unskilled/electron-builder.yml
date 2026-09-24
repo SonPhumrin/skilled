@@ -1,0 +1,32 @@
+appId: dev.unskilled.app
+productName: UnSkilled
+copyright: Copyright © 2026 UnSkilled contributors
+directories:
+  output: dist
+  buildResources: build
+files:
+  - out/**
+  - package.json
+# skilled ships inside the app: skills.json plus every skill directory.
+extraResources:
+  - from: ../../skills
+    to: skilled/skills
+  - from: ../../skills.json
+    to: skilled/skills.json
+# The Agent SDK spawns its bundled Claude Code binary; binaries can't run
+# from inside an asar archive.
+asarUnpack:
+  - "node_modules/@anthropic-ai/claude-agent-sdk*/**"
+mac:
+  target: [dmg, zip]
+  category: public.app-category.developer-tools
+  hardenedRuntime: true
+win:
+  target: [nsis]
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+linux:
+  target: [AppImage]
+  category: Development
+  synopsis: A minimal desktop coding-agent harness
