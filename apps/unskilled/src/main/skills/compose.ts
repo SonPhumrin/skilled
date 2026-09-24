@@ -9,7 +9,7 @@ import { qualifySkillCalls } from "./plugin";
  * for a typed /command -- followed by whatever the user typed after it.
  * The body's own relative links resolve against `base`.
  */
-export function composePrompt(catalog: Catalog, text: string, skillName?: string): string {
+export function composePrompt(catalog: Catalog, text: string, skillName?: string, skillCallPrefix = "skilled:"): string {
   if (!skillName) return text;
   const skill = catalog.byName.get(skillName);
   if (!skill) throw new Error(`unknown skill: ${skillName}`);
@@ -17,7 +17,7 @@ export function composePrompt(catalog: Catalog, text: string, skillName?: string
     throw new Error(`${skillName} is model-invoked; the agent loads it on its own`);
   }
   const known = new Set(catalog.modelSkills.map((s) => s.name));
-  const body = qualifySkillCalls(readSkillBody(catalog.root, skillName), known);
+  const body = qualifySkillCalls(readSkillBody(catalog.root, skillName), known, skillCallPrefix);
   const base = join(catalog.root.skillsDir, skillName);
   const args = text.trim();
   return [

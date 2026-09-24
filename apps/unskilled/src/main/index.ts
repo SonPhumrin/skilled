@@ -4,13 +4,15 @@ import { fileURLToPath } from "node:url";
 import { BrowserWindow, app, dialog, ipcMain, nativeTheme, shell } from "electron";
 import type { LiveUpdate, PermissionDecision, SendRequest, Thread } from "../shared/types";
 import { spawnSync } from "node:child_process";
+import { createAcpDriver } from "./agents/acp/driver";
 import { createClaudeDriver, resolvePackagedClaudeBinary } from "./agents/claude";
+import { loadAcpAgents } from "./agents/registry";
 import { BrowserController, isAllowedUrl } from "./browser/controller";
 import { browserTools } from "./browser/tools";
 import { Store } from "./db";
 import { Service } from "./service";
 import { defaultSkillsCandidates, findSkillsRoot, loadCatalog } from "./skills/catalog";
-import { ensurePlugin } from "./skills/plugin";
+import { ensureModelSkillsDir, ensurePlugin } from "./skills/plugin";
 
 const here = fileURLToPath(new URL(".", import.meta.url));
 const smoke = process.argv.includes("--smoke");
@@ -93,7 +95,17 @@ async function main(): Promise<void> {
     join(userData, "screenshots"),
   );
   const tools = browserTools(browser);
-  const service = new Service(store, catalog, driver, broadcast, () => (browser.enabled ? tools : []));
+  // Claude first (the default for new threads), then any installed ACP agents.
+  const { agents: acpAgents, problems } = loadAcpAgents(join(userData, "agents.json"));
+  for (const p of problems) console.warn(p);
+  const modelSkillsDir = join(userData, "skilled-skills");
+  const drivers = [
+    driver,
+    ...acpAgents.map((config) =>
+      createAcpDriver(config, { skillsDir: () => ensureModelSkillsDir(catalog, modelSkillsDir), clientVersion: app.getVersion() }),
+    ),
+  ];
+  const service = new Service(store, catalog, drivers, broadcast, () => (browser.enabled ? tools : []));
 
   ipcMain.handle("projects:list", () => store.listProjects());
   ipcMain.handle("projects:add", async (event) => {
@@ -107,9 +119,9 @@ async function main(): Promise<void> {
     return res.canceled || !path ? null : store.addProject(path);
   });
   ipcMain.handle("threads:list", (_e, projectId: string) => store.listThreads(projectId));
-  ipcMain.handle("threads:create", (_e, projectId: string) => service.createThread(projectId));
-  ipcMain.handle("threads:update", (_e, id: string, patch: Partial<Pick<Thread, "title" | "model" | "permissionMode">>) =>
-    store.updateThread(id, pick(patch, ["title", "model", "permissionMode"])),
+  ipcMain.handle("threads:create", (_e, projectId: string, agent?: string) => service.createThread(projectId, agent));
+  ipcMain.handle("threads:update", (_e, id: string, patch: Partial<Pick<Thread, "title" | "model" | "permissionMode" | "agent">>) =>
+    service.updateThread(id, pick(patch, ["title", "model", "permissionMode", "agent"])),
   );
   ipcMain.handle("threads:delete", (_e, id: string) => {
     service.interrupt(id);
@@ -117,7 +129,7 @@ async function main(): Promise<void> {
   });
   ipcMain.handle("events:list", (_e, threadId: string) => store.listEvents(threadId));
   ipcMain.handle("skills:list", () => service.listSkills());
-  ipcMain.handle("models:list", () => service.listModels());
+  ipcMain.handle("agents:list", () => service.listAgents());
   ipcMain.handle("turn:send", (_e, req: SendRequest) => {
     // Resolve once the turn has started; progress arrives as updates.
     service.send(req).catch((err: unknown) => {
@@ -187,7 +199,10 @@ async function main(): Promise<void> {
   app.on("window-all-closed", () => {
     if (process.platform !== "darwin") app.quit();
   });
-  app.on("before-quit", () => store.close());
+  app.on("before-quit", () => {
+    service.dispose();
+    store.close();
+  });
 }
 
 /**

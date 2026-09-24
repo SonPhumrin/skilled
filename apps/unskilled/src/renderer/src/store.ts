@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import type {
+  AgentInfo,
   LiveUpdate,
-  ModelOption,
   PermissionRequest,
   Project,
   SkillEntry,
@@ -14,7 +14,9 @@ interface State {
   projects: Project[];
   threads: Record<string, Thread[]>; // by project id
   skills: SkillEntry[];
-  models: ModelOption[];
+  agents: AgentInfo[];
+  /** The agent new threads start with: the last one picked. */
+  lastAgent: string | null;
   selectedProjectId: string | null;
   selectedThreadId: string | null;
   events: Record<string, StoredEvent[]>; // by thread id
@@ -37,7 +39,7 @@ interface State {
   selectThread(id: string | null): Promise<void>;
   newThread(skill?: string): Promise<void>;
   takePendingSkill(): string | null;
-  updateThread(patch: Partial<Pick<Thread, "title" | "model" | "permissionMode">>): Promise<void>;
+  updateThread(patch: Partial<Pick<Thread, "title" | "model" | "permissionMode" | "agent">>): Promise<void>;
   send(text: string, skill?: string): Promise<void>;
   interrupt(): Promise<void>;
   respond(requestId: string, decision: "allow-once" | "allow-always" | "deny"): Promise<void>;
@@ -57,7 +59,8 @@ export const useStore = create<State>((set, get) => ({
   projects: [],
   threads: {},
   skills: [],
-  models: [],
+  agents: [],
+  lastAgent: null,
   selectedProjectId: null,
   selectedThreadId: null,
   events: {},
@@ -77,10 +80,10 @@ export const useStore = create<State>((set, get) => ({
     initialized = true;
     // Subscribe before the first await, so no update sent during startup is lost.
     api().onUpdate((u) => get().apply(u));
-    const [projects, skills, models] = await Promise.all([api().listProjects(), api().listSkills(), api().listModels()]);
+    const [projects, skills, agents] = await Promise.all([api().listProjects(), api().listSkills(), api().listAgents()]);
     const threads: Record<string, Thread[]> = {};
     for (const p of projects) threads[p.id] = await api().listThreads(p.id);
-    set({ projects, skills, models, threads });
+    set({ projects, skills, agents, threads });
     const first = projects[0];
     if (first) {
       await get().selectProject(first.id);
@@ -121,7 +124,7 @@ export const useStore = create<State>((set, get) => ({
   async newThread(skill) {
     const projectId = get().selectedProjectId;
     if (!projectId) return;
-    const thread = await api().createThread(projectId);
+    const thread = await api().createThread(projectId, get().lastAgent ?? undefined);
     set((s) => ({
       pendingSkill: skill ?? null,
       threads: { ...s.threads, [projectId]: upsertThread(s.threads[projectId], thread) },
@@ -140,7 +143,10 @@ export const useStore = create<State>((set, get) => ({
     const id = get().selectedThreadId;
     if (!id) return;
     const thread = await api().updateThread(id, patch);
+    if (patch.agent) set({ lastAgent: patch.agent });
     get().apply({ type: "thread", thread });
+    // A new agent may report its models only once it has run; refresh the list.
+    if (patch.agent) set({ agents: await api().listAgents() });
   },
 
   async send(text, skill) {
@@ -189,6 +195,7 @@ export const useStore = create<State>((set, get) => ({
         set((s) => ({ liveText: { ...s.liveText, [update.threadId]: (s.liveText[update.threadId] ?? "") + update.text } }));
         return;
       case "running":
+        if (!update.running) void api().listAgents().then((agents) => set({ agents }));
         set((s) => ({
           running: { ...s.running, [update.threadId]: update.running },
           liveText: update.running ? s.liveText : { ...s.liveText, [update.threadId]: "" },

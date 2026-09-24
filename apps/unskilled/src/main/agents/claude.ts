@@ -4,6 +4,7 @@ import { createSdkMcpServer, query, tool } from "@anthropic-ai/claude-agent-sdk"
 import type { HookCallback, Options, PermissionResult, SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 import type { ModelOption, PermissionMode } from "../../shared/types";
 import { checkCommand } from "../guard";
+import { PLUGIN_NAME } from "../skills/plugin";
 import { summarizeToolInput, summarizeToolResult } from "./summarize";
 import type { AgentDriver, HarnessTool, ToolOutput, TurnInput } from "./types";
 
@@ -92,6 +93,7 @@ export function createClaudeDriver(config: ClaudeDriverConfig): AgentDriver {
     id: "claude",
     label: "Claude",
     defaultModel: "claude-opus-5",
+    skillCallPrefix: `${PLUGIN_NAME}:`,
     models: () => MODELS,
     async runTurn(input: TurnInput): Promise<void> {
       const abortController = new AbortController();

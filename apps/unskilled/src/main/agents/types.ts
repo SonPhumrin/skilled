@@ -24,6 +24,7 @@ export interface HarnessTool<Shape extends ZodRawShape = ZodRawShape> {
 
 /** What a driver needs for one turn. */
 export interface TurnInput {
+  threadId: string;
   cwd: string;
   prompt: string;
   /** The agent's session to resume, or null for a new conversation. */
@@ -49,5 +50,13 @@ export interface AgentDriver {
   label: string;
   models(): ModelOption[];
   defaultModel: string;
+  /**
+   * How this agent names skilled's skills in a Skill-tool call: "skilled:"
+   * for Claude, which loads them as a plugin; "" for agents that load them
+   * by bare name.
+   */
+  skillCallPrefix: string;
   runTurn(input: TurnInput): Promise<void>;
+  /** Stop any agent processes the driver keeps alive. */
+  dispose?(): void;
 }

@@ -12,6 +12,7 @@ function fakeDriver(script: (input: TurnInput) => Promise<void>): AgentDriver & 
     id: "fake",
     label: "Fake",
     defaultModel: "fake-1",
+    skillCallPrefix: "skilled:",
     models: () => [{ id: "fake-1", label: "Fake 1" }],
     prompts,
     async runTurn(input) {
@@ -26,7 +27,7 @@ function setup(script: (input: TurnInput) => Promise<void>) {
   closeAfter(() => store.close());
   const updates: LiveUpdate[] = [];
   const driver = fakeDriver(script);
-  const service = new Service(store, catalog(), driver, (u) => updates.push(u));
+  const service = new Service(store, catalog(), [driver], (u) => updates.push(u));
   const project = store.addProject(tempDir());
   const thread = service.createThread(project.id);
   return { store, service, driver, updates, thread };

@@ -12,6 +12,24 @@ The app follows the contract in [HARNESS.md](../../HARNESS.md):
 - **User-invoked skills (23)** never go to the agent. The `/` menu lists them from `skills.json`. When you pick one, the app puts the skill's body into your message, the same thing Claude Code does for a typed `/command`.
 - **git-guardrails** runs as a pre-tool hook on every shell command the agent issues. It needs Python 3; without it the guard is off.
 
+## Agents
+
+Every thread runs one agent, picked in the header. Switching agents starts a fresh conversation, because sessions don't carry across agents.
+
+- **Claude** (always there) uses the Claude Agent SDK. It gets skilled's model-invoked skills as a plugin, plus the browser tools.
+- **Any agent that speaks ACP** (the [Agent Client Protocol](https://agentclientprotocol.com)) goes through one generic driver. Each thread keeps its agent process alive between turns and resumes the stored session after a restart when the agent supports it. Models come from the agent's own `model` config option.
+  - **DeepSeek** appears when `dsh` ([deepseek-harness](https://github.com/deepseek-ai/deepseek-harness), `npm i -g @deepseek-ai/dsh`) is on your PATH. It runs as `dsh --profile acp` and uses your dsh configuration and `DEEPSEEK_API_KEY`. skilled's model-invoked skills reach it through `DSH_BUNDLED_SKILL_DIR`, so nothing is written into your project.
+  - **Cursor** appears when `cursor-agent` is on your PATH.
+  - **Your own:** add them to `agents.json` in the app's data folder. An entry with a preset's id replaces the preset:
+
+    ```json
+    { "agents": [{ "id": "gemini", "label": "Gemini", "command": "gemini", "args": ["--experimental-acp"], "env": {} }] }
+    ```
+
+  The permission modes carry over. Ask asks for every tool call. Auto-edit allows reads and file edits without asking. Full allows everything.
+
+The `/` menu works the same for every agent, since the app composes the skill's text itself. For now the browser tools reach Claude only.
+
 ## The built-in browser
 
 The Browser tab (⌘⇧B) is a real Chromium page beside the thread: open your dev server there, and the agent can drive the same page. Once you've opened the tab, the agent gets seven tools: `browser_open`, `browser_snapshot`, `browser_click`, `browser_type`, `browser_eval`, `browser_logs`, and `browser_screenshot`. Before that, they aren't sent at all, so they cost no context.
@@ -48,7 +66,7 @@ CI runs typecheck, tests, packaging, and a smoke test of the packaged app on all
 | :--- | :--- |
 | `src/main/index.ts` | Electron entry point: window, IPC, smoke mode |
 | `src/main/service.ts` | Everything the UI can ask for. No Electron imports, so it runs in tests |
-| `src/main/agents/` | The `AgentDriver` interface and the Claude driver (Agent SDK) |
+| `src/main/agents/` | The `AgentDriver` interface, the Claude driver (Agent SDK), the ACP driver (`acp/`), and the agent registry |
 | `src/main/skills/` | Reading `skills.json`, generating the plugin, composing prompts |
 | `src/main/db.ts` | SQLite store (`node:sqlite`): projects, threads, events |
 | `src/main/git.ts` | Working-tree diff for the Changes panel |
@@ -64,5 +82,5 @@ Electron 44 (the same Chromium on every OS, which the built-in browser needs), R
 
 ## Roadmap
 
-- **Milestone 2:** ~~the built-in browser pane~~ (done). Still to come: Codex (app-server), a generic ACP driver (covers deepseek-harness, Gemini CLI, and Cursor through one adapter), an element picker in the browser, and a terminal tab.
+- **Milestone 2:** ~~the built-in browser pane~~ and ~~the generic ACP driver~~ (done). Still to come: Codex (app-server), browser tools for ACP agents (an HTTP MCP server), an element picker in the browser, and a terminal tab.
 - **Milestone 3:** code signing and notarization, auto-update, and a per-thread view of token usage.

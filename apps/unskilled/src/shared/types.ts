@@ -27,6 +27,8 @@ export type PermissionMode = "ask" | "auto-edit" | "full";
 export interface Thread {
   id: string;
   projectId: string;
+  /** Which agent runs this thread: "claude", or an ACP agent's id. */
+  agent: string;
   title: string;
   /** The agent's own session id, used to resume the conversation. */
   sessionId: string | null;
@@ -90,6 +92,13 @@ export interface ModelOption {
   label: string;
 }
 
+export interface AgentInfo {
+  id: string;
+  label: string;
+  models: ModelOption[];
+  defaultModel: string;
+}
+
 export interface SendRequest {
   threadId: string;
   text: string;
@@ -113,12 +122,12 @@ export interface UnskilledApi {
   listProjects(): Promise<Project[]>;
   addProject(): Promise<Project | null>;
   listThreads(projectId: string): Promise<Thread[]>;
-  createThread(projectId: string): Promise<Thread>;
-  updateThread(threadId: string, patch: Partial<Pick<Thread, "title" | "model" | "permissionMode">>): Promise<Thread>;
+  createThread(projectId: string, agent?: string): Promise<Thread>;
+  updateThread(threadId: string, patch: Partial<Pick<Thread, "title" | "model" | "permissionMode" | "agent">>): Promise<Thread>;
   deleteThread(threadId: string): Promise<void>;
   listEvents(threadId: string): Promise<StoredEvent[]>;
   listSkills(): Promise<SkillEntry[]>;
-  listModels(): Promise<ModelOption[]>;
+  listAgents(): Promise<AgentInfo[]>;
   send(request: SendRequest): Promise<void>;
   interrupt(threadId: string): Promise<void>;
   respondPermission(requestId: string, decision: PermissionDecision): Promise<void>;

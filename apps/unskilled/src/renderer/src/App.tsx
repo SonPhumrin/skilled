@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import type { PermissionMode } from "../../shared/types";
+import type { AgentInfo, PermissionMode } from "../../shared/types";
 import { Composer } from "./components/Composer";
 import { Inspector } from "./components/Inspector";
 import { Sidebar } from "./components/Sidebar";
@@ -18,7 +18,7 @@ export function App() {
   const selectedProjectId = useStore((s) => s.selectedProjectId);
   const inspectorOpen = useStore((s) => s.inspectorOpen);
   const inspectorTab = useStore((s) => s.inspectorTab);
-  const models = useStore((s) => s.models);
+  const agents = useStore((s) => s.agents);
   const thread = useSelectedThread();
   const running = useStore((s) => (thread ? Boolean(s.running[thread.id]) : false));
   const { init, newThread, showInspector, updateThread, interrupt, addProject } = useStore.getState();
@@ -63,6 +63,21 @@ export function App() {
           </div>
           {thread && (
             <>
+              {agents.length > 1 && (
+                <select
+                  className="select"
+                  value={thread.agent}
+                  title="Agent"
+                  disabled={running}
+                  onChange={(e) => void updateThread({ agent: e.target.value })}
+                >
+                  {agents.map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {a.label}
+                    </option>
+                  ))}
+                </select>
+              )}
               <select
                 className="select"
                 value={thread.model}
@@ -70,7 +85,7 @@ export function App() {
                 disabled={running}
                 onChange={(e) => void updateThread({ model: e.target.value })}
               >
-                {models.map((m) => (
+                {modelOptions(agents, thread.agent, thread.model).map((m) => (
                   <option key={m.id} value={m.id}>
                     {m.label}
                   </option>
@@ -148,6 +163,12 @@ export function App() {
       {inspectorVisible && <Inspector projectId={project?.id ?? null} />}
     </div>
   );
+}
+
+/** The thread's agent's models, keeping the current one listed even if the agent no longer reports it. */
+function modelOptions(agents: AgentInfo[], agent: string, current: string): { id: string; label: string }[] {
+  const list = agents.find((a) => a.id === agent)?.models ?? [];
+  return list.some((m) => m.id === current) ? list : [{ id: current, label: current }, ...list];
 }
 
 function Hint({ skill, d }: { skill: string; d: string }) {

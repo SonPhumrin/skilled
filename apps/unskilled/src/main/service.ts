@@ -1,8 +1,8 @@
 import { randomUUID } from "node:crypto";
 import type {
+  AgentInfo,
   DiffFile,
   LiveUpdate,
-  ModelOption,
   PermissionDecision,
   SendRequest,
   SkillEntry,
@@ -24,14 +24,25 @@ export class Service {
   private running = new Map<string, AbortController>();
   private pendingPermissions = new Map<string, (d: PermissionDecision) => void>();
 
+  private drivers: Map<string, AgentDriver>;
+
   constructor(
     private store: Store,
     private catalog: Catalog,
-    private driver: AgentDriver,
+    drivers: AgentDriver[],
     private broadcast: (update: LiveUpdate) => void,
     /** Tools the harness offers the agent this turn (the browser pane's, once it's open). */
     private harnessTools: () => HarnessTool[] = () => [],
-  ) {}
+  ) {
+    if (!drivers.length) throw new Error("no agent drivers");
+    this.drivers = new Map(drivers.map((d) => [d.id, d]));
+  }
+
+  private driverFor(agent: string): AgentDriver {
+    const d = this.drivers.get(agent);
+    if (!d) throw new Error(`The agent "${agent}" isn't available. Install it or pick another agent for this thread.`);
+    return d;
+  }
 
   listSkills(): SkillEntry[] {
     // Only user-invoked skills belong in the / menu; the agent finds the
@@ -39,13 +50,29 @@ export class Service {
     return this.catalog.userSkills;
   }
 
-  listModels(): ModelOption[] {
-    return this.driver.models();
+  listAgents(): AgentInfo[] {
+    return [...this.drivers.values()].map((d) => ({ id: d.id, label: d.label, models: d.models(), defaultModel: d.defaultModel }));
   }
 
-  createThread(projectId: string): Thread {
+  createThread(projectId: string, agent?: string): Thread {
     this.store.getProject(projectId);
-    return this.store.createThread(projectId, this.driver.defaultModel, "ask");
+    const driver = agent ? this.driverFor(agent) : [...this.drivers.values()][0]!;
+    return this.store.createThread(projectId, driver.id, driver.defaultModel, "ask");
+  }
+
+  /** Switching agents starts a fresh conversation: sessions don't carry across agents. */
+  updateThread(id: string, patch: Partial<Pick<Thread, "title" | "model" | "permissionMode" | "agent">>): Thread {
+    const current = this.store.getThread(id);
+    if (patch.agent && patch.agent !== current.agent) {
+      if (this.running.has(id)) throw new Error("Stop the running turn before switching agents.");
+      const driver = this.driverFor(patch.agent);
+      return this.store.updateThread(id, { ...patch, model: patch.model ?? driver.defaultModel, sessionId: null });
+    }
+    return this.store.updateThread(id, patch);
+  }
+
+  dispose(): void {
+    for (const d of this.drivers.values()) d.dispose?.();
   }
 
   isRunning(threadId: string): boolean {
@@ -62,7 +89,8 @@ export class Service {
     if (this.running.has(req.threadId)) throw new Error("This thread is already running.");
     const thread = this.store.getThread(req.threadId);
     const project = this.store.getProject(thread.projectId);
-    const prompt = composePrompt(this.catalog, req.text, req.skill);
+    const driver = this.driverFor(thread.agent);
+    const prompt = composePrompt(this.catalog, req.text, req.skill, driver.skillCallPrefix);
 
     this.emit(thread.id, { kind: "user", text: req.text, skill: req.skill });
     if (thread.title === "New thread") {
@@ -74,7 +102,11 @@ export class Service {
     this.running.set(thread.id, controller);
     this.broadcast({ type: "running", threadId: thread.id, running: true });
     try {
-      await this.driver.runTurn({
+      if (thread.sessionId === null && this.store.listEvents(thread.id).length > 1) {
+        this.emit(thread.id, { kind: "notice", text: `Now talking to ${driver.label}. It starts without the earlier messages above.` });
+      }
+      await driver.runTurn({
+        threadId: thread.id,
         cwd: project.path,
         prompt,
         sessionId: thread.sessionId,

@@ -10,13 +10,14 @@ export const PLUGIN_NAME = "skilled";
  * on a line that mentions the Skill tool is qualified. Only names in
  * `known` are touched, so ordinary quoted text is left alone.
  */
-export function qualifySkillCalls(text: string, known: Set<string>): string {
+export function qualifySkillCalls(text: string, known: Set<string>, prefix = `${PLUGIN_NAME}:`): string {
+  if (!prefix) return text;
   return text
     .split("\n")
     .map((line) => {
       if (!/Skill tool/.test(line)) return line;
       return line.replace(/(["`])([a-z0-9-]+)\1/g, (match, quote: string, name: string) =>
-        known.has(name) ? `${quote}${PLUGIN_NAME}:${name}${quote}` : match,
+        known.has(name) ? `${quote}${prefix}${name}${quote}` : match,
       );
     })
     .join("\n");
@@ -68,6 +69,24 @@ export function ensurePlugin(catalog: Catalog, targetDir: string): string {
     const dest = join(targetDir, "skills", skill.name);
     cpSync(join(catalog.root.skillsDir, skill.name), dest, { recursive: true });
     rewriteMarkdown(dest, known);
+  }
+  writeFileSync(stampFile, stamp);
+  return targetDir;
+}
+
+/**
+ * A plain copy of the model-invoked skills, names unqualified, for agents
+ * that load skills from a directory (deepseek-harness's
+ * DSH_BUNDLED_SKILL_DIR). Rebuilt only when the catalog changes.
+ */
+export function ensureModelSkillsDir(catalog: Catalog, targetDir: string): string {
+  const stamp = catalog.modelSkills.map((s) => `${s.name}:${s.sha256}`).join("\n");
+  const stampFile = join(targetDir, ".stamp");
+  if (existsSync(stampFile) && readFileSync(stampFile, "utf-8") === stamp) return targetDir;
+  rmSync(targetDir, { recursive: true, force: true });
+  mkdirSync(targetDir, { recursive: true });
+  for (const skill of catalog.modelSkills) {
+    cpSync(join(catalog.root.skillsDir, skill.name), join(targetDir, skill.name), { recursive: true });
   }
   writeFileSync(stampFile, stamp);
   return targetDir;

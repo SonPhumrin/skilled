@@ -32,6 +32,7 @@ export class Store {
         created_at INTEGER NOT NULL,
         updated_at INTEGER NOT NULL
       );
+      CREATE TABLE IF NOT EXISTS schema_version (version INTEGER NOT NULL);
       CREATE TABLE IF NOT EXISTS events (
         thread_id TEXT NOT NULL REFERENCES threads(id) ON DELETE CASCADE,
         seq INTEGER NOT NULL,
@@ -40,6 +41,24 @@ export class Store {
         PRIMARY KEY (thread_id, seq)
       );
     `);
+    this.migrate();
+  }
+
+  /** Additive migrations, in order. Each runs once per database. */
+  private migrate(): void {
+    const steps: string[] = [
+      // 1: threads choose their agent
+      "ALTER TABLE threads ADD COLUMN agent TEXT NOT NULL DEFAULT 'claude'",
+    ];
+    const row = this.db.prepare("SELECT version FROM schema_version").get() as unknown as { version: number } | undefined;
+    let version = row?.version ?? 0;
+    if (!row) this.db.prepare("INSERT INTO schema_version (version) VALUES (0)").run();
+    for (; version < steps.length; version++) {
+      const cols = this.db.prepare("PRAGMA table_info(threads)").all() as unknown as { name: string }[];
+      // A fresh database may already have the column from a newer CREATE; skip if so.
+      if (!(version === 0 && cols.some((c) => c.name === "agent"))) this.db.exec(steps[version]!);
+      this.db.prepare("UPDATE schema_version SET version = ?").run(version + 1);
+    }
   }
 
   close(): void {
@@ -76,11 +95,12 @@ export class Store {
       .map((r) => toThread(r as unknown as ThreadRow));
   }
 
-  createThread(projectId: string, model: string, permissionMode: PermissionMode): Thread {
+  createThread(projectId: string, agent: string, model: string, permissionMode: PermissionMode): Thread {
     const now = Date.now();
     const thread: Thread = {
       id: randomUUID(),
       projectId,
+      agent,
       title: "New thread",
       sessionId: null,
       model,
@@ -90,9 +110,9 @@ export class Store {
     };
     this.db
       .prepare(
-        "INSERT INTO threads (id, project_id, title, session_id, model, permission_mode, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO threads (id, project_id, agent, title, session_id, model, permission_mode, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
       )
-      .run(thread.id, projectId, thread.title, null, model, permissionMode, now, now);
+      .run(thread.id, projectId, agent, thread.title, null, model, permissionMode, now, now);
     return thread;
   }
 
@@ -102,11 +122,11 @@ export class Store {
     return toThread(row as unknown as ThreadRow);
   }
 
-  updateThread(id: string, patch: Partial<Pick<Thread, "title" | "model" | "permissionMode" | "sessionId">>): Thread {
+  updateThread(id: string, patch: Partial<Pick<Thread, "title" | "model" | "permissionMode" | "sessionId" | "agent">>): Thread {
     const t = { ...this.getThread(id), ...patch, updatedAt: Date.now() };
     this.db
-      .prepare("UPDATE threads SET title = ?, session_id = ?, model = ?, permission_mode = ?, updated_at = ? WHERE id = ?")
-      .run(t.title, t.sessionId, t.model, t.permissionMode, t.updatedAt, id);
+      .prepare("UPDATE threads SET agent = ?, title = ?, session_id = ?, model = ?, permission_mode = ?, updated_at = ? WHERE id = ?")
+      .run(t.agent, t.title, t.sessionId, t.model, t.permissionMode, t.updatedAt, id);
     return t;
   }
 
@@ -136,7 +156,7 @@ export class Store {
   }
 }
 
-const THREAD_COLS = "id, project_id, title, session_id, model, permission_mode, created_at, updated_at";
+const THREAD_COLS = "id, project_id, agent, title, session_id, model, permission_mode, created_at, updated_at";
 
 interface ProjectRow {
   id: string;
@@ -148,6 +168,7 @@ interface ProjectRow {
 interface ThreadRow {
   id: string;
   project_id: string;
+  agent: string;
   title: string;
   session_id: string | null;
   model: string;
@@ -164,6 +185,7 @@ function toThread(r: ThreadRow): Thread {
   return {
     id: r.id,
     projectId: r.project_id,
+    agent: r.agent,
     title: r.title,
     sessionId: r.session_id,
     model: r.model,

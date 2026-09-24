@@ -22,6 +22,7 @@ export function installMock(): void {
   const t = (id: string, projectId: string, title: string, ago: number): Thread => ({
     id,
     projectId,
+    agent: "claude",
     title,
     sessionId: "s-" + id,
     model: "claude-opus-5",
@@ -125,10 +126,27 @@ export function installMock(): void {
     deleteThread: async () => {},
     listEvents: async (id) => events[id] ?? [],
     listSkills: async () => skills,
-    listModels: async () => [
-      { id: "claude-opus-5", label: "Opus 5" },
-      { id: "claude-sonnet-5", label: "Sonnet 5" },
-      { id: "claude-haiku-4-5", label: "Haiku 4.5" },
+    listAgents: async () => [
+      {
+        id: "claude",
+        label: "Claude",
+        defaultModel: "claude-opus-5",
+        models: [
+          { id: "claude-opus-5", label: "Opus 5" },
+          { id: "claude-sonnet-5", label: "Sonnet 5" },
+          { id: "claude-haiku-4-5", label: "Haiku 4.5" },
+        ],
+      },
+      {
+        id: "deepseek",
+        label: "DeepSeek",
+        defaultModel: "default",
+        models: [
+          { id: "default", label: "Agent default" },
+          { id: "deepseek-v4-pro", label: "DeepSeek V4 Pro" },
+          { id: "deepseek-v4-flash", label: "DeepSeek V4 Flash" },
+        ],
+      },
     ],
     send: async () => {},
     interrupt: async () => {},
