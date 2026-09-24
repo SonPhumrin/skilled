@@ -28,6 +28,17 @@ const api: UnskilledApi = {
   openDataFolder: () => ipcRenderer.invoke("app:open-data-folder"),
   updateStatus: () => ipcRenderer.invoke("app:update-status"),
   listLimits: () => ipcRenderer.invoke("limits:list"),
+  listAllSkills: () => ipcRenderer.invoke("library:skills"),
+  getSkillDetail: (name) => ipcRenderer.invoke("library:skill", name),
+  listAgentCatalog: () => ipcRenderer.invoke("library:agents"),
+  getMcp: (projectId) => ipcRenderer.invoke("mcp:get", projectId),
+  saveMcpServer: (entry, previousName) => ipcRenderer.invoke("mcp:save", entry, previousName),
+  removeMcpServer: (name) => ipcRenderer.invoke("mcp:remove", name),
+  setMcpServerEnabled: (name, enabled) => ipcRenderer.invoke("mcp:enable", name, enabled),
+  testMcpServer: (name) => ipcRenderer.invoke("mcp:test", name),
+  revealPath: (path) => ipcRenderer.invoke("app:reveal", path),
+  listEditors: () => ipcRenderer.invoke("editors:list"),
+  openInEditor: (target, editor) => ipcRenderer.invoke("editors:open", target, editor),
   installUpdate: () => ipcRenderer.invoke("app:install-update"),
   onUpdate: (listener) => {
     const handler = (_e: Electron.IpcRendererEvent, update: LiveUpdate) => listener(update);

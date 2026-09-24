@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef } from "react";
 import type { StoredEvent, ThreadEvent } from "../../../shared/types";
+import { type FileRef, parseFileRef } from "../fileref";
 import { Markdown } from "../markdown";
 import { useStore } from "../store";
 import { PermissionCard } from "./PermissionCard";
@@ -72,7 +73,7 @@ function EventRow({ stored, results, running }: { stored: StoredEvent; results: 
     case "assistant-text":
       return (
         <div className="msg-assistant">
-          <Markdown text={e.text} />
+          <Markdown text={e.text} onFile={openRef} />
         </div>
       );
     case "thinking":
@@ -104,14 +105,28 @@ function EventRow({ stored, results, running }: { stored: StoredEvent; results: 
 
 function ToolRow({ tool, result, running }: { tool: ToolEvent; result?: ResultEvent; running: boolean }) {
   const state = result ? (result.isError ? "error" : "done") : running ? "pending" : "";
+  // File tools name the file they touched; open it from the row.
+  const fileRef = FILE_TOOLS.has(tool.name) ? parseFileRef(tool.summary.split(", ")[0] ?? "") : null;
   return (
     <div className="tool-row" title={result?.summary ?? tool.summary}>
       <span className={`dot ${state}`} />
       <span className="name">{prettyTool(tool.name)}</span>
-      <span className="summary">{tool.summary}</span>
+      {fileRef ? (
+        <button className="summary file-link" title="Open in the editor" onClick={() => openRef(fileRef)}>
+          {tool.summary}
+        </button>
+      ) : (
+        <span className="summary">{tool.summary}</span>
+      )}
       {result?.summary && <span className="result">{result.summary}</span>}
     </div>
   );
+}
+
+const FILE_TOOLS = new Set(["Read", "Edit", "Write", "MultiEdit", "NotebookEdit"]);
+
+function openRef(ref: FileRef): void {
+  void useStore.getState().openInEditor(ref);
 }
 
 function prettyTool(name: string): string {

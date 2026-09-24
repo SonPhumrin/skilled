@@ -12,6 +12,38 @@ The app follows the contract in [HARNESS.md](../../HARNESS.md):
 - **User-invoked skills (23)** never go to the agent. The `/` menu lists them from `skills.json`. When you pick one, the app puts the skill's body into your message, the same thing Claude Code does for a typed `/command`.
 - **git-guardrails** runs as a pre-tool hook on every shell command the agent issues. It needs Python 3; without it the guard is off.
 
+## Library
+
+The Library (⌘⇧L, the books icon in the sidebar, or ⌘K) shows what the agents get, like the plugin and skill views in other harnesses:
+
+- **Skills:** every skilled skill, searchable, split into the workflow skills you start with `/` and the ones the agent loads by itself. Each one shows its full SKILL.md, what it calls and what calls it, its files, and how it reaches each installed agent (Claude's plugin, Codex's skills folder, `DSH_BUNDLED_SKILL_DIR`, or `install.py`). Workflow skills have a **Use in Thread** button.
+- **MCP Servers:** your own servers, the app's built-in browser tools, and, read-only, the servers each agent already loads from its own config: Claude Code's `~/.claude.json` and `.mcp.json`, Codex's `~/.codex/config.toml`, Gemini's `settings.json`, and OpenCode's `opencode.json`. Env and header values are never shown.
+- **Agents:** every agent the app knows, installed or not, with how it runs, how skills and MCP servers reach it, and a copyable install command for the missing ones.
+
+### Your MCP servers
+
+Add a server in the Library (a command, or a URL for Streamable HTTP, plus env vars or headers) and every agent gets it in every thread, next to its own:
+
+- Claude gets it through the Agent SDK's `mcpServers`.
+- Codex gets it in the thread's config (`mcp_servers`).
+- ACP agents get it in `session/new`. They get stdio servers always, and URL servers when they support HTTP MCP.
+
+Changing the list reloads the agent's session at the next message, so a running conversation picks it up. **Test** connects and lists the server's tools. Switching a server off keeps it without passing it on. The servers live in `mcp.json` in the data folder, in the same shape as Claude Code's `.mcp.json`, so entries copy across; the file is readable only by you.
+
+## Open in editor
+
+- **Changes panel:** **Open in <editor>** opens the project, and its menu lists every editor found, plus Show in Finder / File Explorer / Files. Each changed file has an open button that opens it at its first change, and clicking a hunk header opens that spot.
+- **In the conversation:** file names in inline code (`src/auth.ts:42`) and the paths on Read/Edit/Write rows are links that open the file at that line.
+- **⌘K:** has Open Project in … for each editor.
+
+Editors found: Cursor, VS Code (and Insiders), Windsurf, VSCodium, Zed, Sublime Text, the JetBrains IDEs (IntelliJ IDEA, WebStorm, PyCharm, GoLand, Rider, CLion, RustRover, PhpStorm, RubyMine), and Xcode on macOS.
+
+The last editor you pick becomes the default; Settings → Editor changes it. How it works:
+
+- **Finding editors without PATH.** Apps started from the Dock or Start menu don't get your shell's PATH, so the app also looks where installers put editors: `.app` bundles in `/Applications` and `~/Applications`, Program Files and `%LOCALAPPDATA%\Programs` (including versioned JetBrains folders), `~/.local/bin`, `/snap/bin` and flatpak on Linux, and JetBrains Toolbox's scripts on every OS.
+- **Jumping to the line.** Each editor family gets its own syntax: `--goto file:line:col` for VS Code and its forks, `file:line:col` for Zed and Sublime, `--line N --column M file` for JetBrains, and `xed --line N` for Xcode.
+- **Starting the editor.** It runs detached, without the API keys you saved in Settings and without Electron's own variables in its environment. Windows `.cmd` launchers go through `cmd.exe` with every argument quoted. If an editor was uninstalled since the app looked, it looks again.
+
 ## Command palette
 
 ⌘K (Ctrl+K on Windows and Linux) opens one search box over everything: actions (new thread, the side panel's tabs, permission mode, agent, model, theme), skilled's workflow skills, every thread in every project, and the projects themselves. Arrow keys move, Return runs, Esc closes. With nothing typed it shows the actions and your five most recent threads. Picking a skill puts it in the current thread's message box, or starts a thread with it when none is open.
@@ -42,11 +74,14 @@ Every thread runs one agent, picked in the header. Switching agents starts a fre
 - **Codex** appears when `codex` is on your PATH. It runs as `codex app-server`, one process for all threads, and resumes threads from Codex's own history. It uses your Codex login. skilled's model-invoked skills reach it as an extra skills root, and Ask / Auto-edit / Full map onto Codex's approval policy and sandbox (`untrusted` / `on-request` / `never`, with `workspace-write`, or full access in Full). Once you open the browser tab, the thread gets the browser tools as an MCP server in its config. A thread that's already running is reloaded so it picks them up.
 - **Any agent that speaks ACP** (the [Agent Client Protocol](https://agentclientprotocol.com)) goes through one generic driver. Each thread keeps its agent process alive between turns and resumes the stored session after a restart when the agent supports it. Models come from the agent's own `model` config option.
   - **DeepSeek** appears when `dsh` ([deepseek-harness](https://github.com/deepseek-ai/deepseek-harness), `npm i -g @deepseek-ai/dsh`) is on your PATH. It runs as `dsh --profile acp` and uses your dsh configuration and `DEEPSEEK_API_KEY`. skilled's model-invoked skills reach it through `DSH_BUNDLED_SKILL_DIR`, so nothing is written into your project.
+  - **Gemini** appears when `gemini` ([Gemini CLI](https://geminicli.com/docs/cli/acp-mode/)) is on your PATH, and runs as `gemini --acp`.
+  - **OpenCode** appears when `opencode` is on your PATH, and runs as `opencode acp`.
   - **Cursor** appears when `cursor-agent` is on your PATH.
+  - Gemini, OpenCode, and Cursor have no setting for an extra skills folder, so skilled's model-invoked skills reach them only if you run `python3 install.py --model-only` in the project (they read `.agents/skills`). The `/` menu works for them either way.
   - **Your own:** add them to `agents.json` in the app's data folder. An entry with a preset's id replaces the preset:
 
     ```json
-    { "agents": [{ "id": "gemini", "label": "Gemini", "command": "gemini", "args": ["--experimental-acp"], "env": {} }] }
+    { "agents": [{ "id": "qwen", "label": "Qwen Code", "command": "qwen", "args": ["--acp"], "env": {} }] }
     ```
 
   The permission modes carry over. Ask asks for every tool call. Auto-edit allows reads and file edits without asking. Full allows everything.
@@ -76,7 +111,7 @@ pnpm typecheck
 
 Claude uses your existing Claude Code login (run `claude` once in a terminal), or `ANTHROPIC_API_KEY`. It reads your usual Claude Code settings and `CLAUDE.md`.
 
-To look at the UI without Electron or an agent: `pnpm --filter unskilled preview:ui`, then open `http://localhost:5199/?state=thread`. Other states: `permission`, `running`, `project`, `welcome`, `settings`, `update`, `palette`, `limits`. This uses canned data from `src/renderer/src/mock.ts`.
+To look at the UI without Electron or an agent: `pnpm --filter unskilled preview:ui`, then open `http://localhost:5199/?state=thread`. Other states: `permission`, `running`, `project`, `welcome`, `settings`, `update`, `palette`, `limits`, `library`, `library-mcp`, `library-agents`. This uses canned data from `src/renderer/src/mock.ts`.
 
 ## Building installers
 
@@ -116,6 +151,9 @@ CI runs typecheck, tests, packaging, and a smoke test of the packaged app on all
 | `src/main/agents/` | The `AgentDriver` interface; the Claude (Agent SDK), Codex (app-server), and ACP drivers; the shared stdio JSON-RPC transport; and the agent registry |
 | `src/main/skills/` | Reading `skills.json`, generating the plugin, composing prompts |
 | `src/main/updater.ts` | Background updates from GitHub releases (electron-updater) |
+| `src/main/mcp/` | Your MCP servers (`mcp.json`), each agent's format for them, the Test connection, and reading the agents' own MCP config |
+| `src/main/library.ts` | What the Library shows: skill details and the agent catalog |
+| `src/main/editors.ts` | Finding editors and opening files in them at a line |
 | `src/main/settings.ts` | Settings and encrypted API keys, in `settings.json` in the data folder |
 | `src/main/db.ts` | SQLite store (`node:sqlite`): projects, threads, events |
 | `src/main/git.ts` | Working-tree diff for the Changes panel |

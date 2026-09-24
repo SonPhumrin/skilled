@@ -1,11 +1,16 @@
 import { Fragment, type ReactNode } from "react";
+import { type FileRef, parseFileRef } from "./fileref";
 
 /**
  * A small Markdown renderer for agent replies: fenced code, headings, lists,
  * paragraphs, and inline code / bold / italic / links. It builds React
  * elements (never raw HTML), so model output can't inject markup.
  */
-export function Markdown({ text, streaming }: { text: string; streaming?: boolean }) {
+/**
+ * `onFile`, when given, turns inline code that names a file (`src/a.ts:42`)
+ * into a link that opens it.
+ */
+export function Markdown({ text, streaming, onFile }: { text: string; streaming?: boolean; onFile?: (ref: FileRef) => void }) {
   const blocks = parseBlocks(text);
   return (
     <>
@@ -20,7 +25,7 @@ export function Markdown({ text, streaming }: { text: string; streaming?: boolea
             );
           case "heading": {
             const H = (`h${Math.min(b.level, 3)}` as "h1" | "h2" | "h3");
-            return <H key={i}>{inline(b.text)}</H>;
+            return <H key={i}>{inline(b.text, onFile)}</H>;
           }
           case "list": {
             const L = b.ordered ? "ol" : "ul";
@@ -28,7 +33,7 @@ export function Markdown({ text, streaming }: { text: string; streaming?: boolea
               <L key={i}>
                 {b.items.map((it, j) => (
                   <li key={j} className={last && j === b.items.length - 1 ? "caret" : undefined}>
-                    {inline(it)}
+                    {inline(it, onFile)}
                   </li>
                 ))}
               </L>
@@ -37,7 +42,7 @@ export function Markdown({ text, streaming }: { text: string; streaming?: boolea
           default:
             return (
               <p key={i} className={last ? "caret" : undefined}>
-                {inline(b.text)}
+                {inline(b.text, onFile)}
               </p>
             );
         }
@@ -104,7 +109,7 @@ export function parseBlocks(text: string): Block[] {
 
 const INLINE = /(`[^`]+`)|(\*\*[^*]+\*\*)|(\*[^*\s][^*]*\*|_[^_\s][^_]*_)|(\[[^\]]+\]\((https?:\/\/[^)\s]+)\))/g;
 
-function inline(text: string): ReactNode {
+function inline(text: string, onFile?: (ref: FileRef) => void): ReactNode {
   const out: ReactNode[] = [];
   let last = 0;
   let key = 0;
@@ -112,7 +117,19 @@ function inline(text: string): ReactNode {
     const idx = m.index ?? 0;
     if (idx > last) out.push(text.slice(last, idx));
     const tok = m[0];
-    if (m[1]) out.push(<code key={key++}>{tok.slice(1, -1)}</code>);
+    if (m[1]) {
+      const code = tok.slice(1, -1);
+      const ref = onFile ? parseFileRef(code) : null;
+      out.push(
+        ref ? (
+          <button key={key++} className="file-link" title={`Open ${code} in the editor`} onClick={() => onFile!(ref)}>
+            <code>{code}</code>
+          </button>
+        ) : (
+          <code key={key++}>{code}</code>
+        ),
+      );
+    }
     else if (m[2]) out.push(<strong key={key++}>{tok.slice(2, -2)}</strong>);
     else if (m[3]) out.push(<em key={key++}>{tok.slice(1, -1)}</em>);
     else if (m[4]) {

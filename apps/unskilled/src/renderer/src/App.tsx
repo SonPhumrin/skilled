@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import type { AgentInfo, PermissionMode } from "../../shared/types";
 import { CommandPalette } from "./components/CommandPalette";
+import { Library } from "./components/Library";
 import { Composer } from "./components/Composer";
 import { Inspector } from "./components/Inspector";
 import { SettingsSheet } from "./components/SettingsSheet";
@@ -38,6 +39,10 @@ export function App() {
         e.preventDefault();
         const s = useStore.getState();
         s.setPaletteOpen(!s.paletteOpen);
+      } else if (mod && e.shiftKey && e.key.toLowerCase() === "l") {
+        e.preventDefault();
+        const s = useStore.getState();
+        useStore.setState({ libraryTab: s.libraryTab ? null : "skills" });
       } else if (mod && e.key === ",") {
         e.preventDefault();
         useStore.getState().setSettingsOpen(true);
@@ -53,7 +58,7 @@ export function App() {
       } else if (mod && e.shiftKey && e.key.toLowerCase() === "b") {
         e.preventDefault();
         showInspector("browser");
-      } else if (e.key === "Escape" && running && !document.querySelector(".skill-menu, .palette, .sheet")) {
+      } else if (e.key === "Escape" && running && !document.querySelector(".skill-menu, .palette, .sheet, .library")) {
         void interrupt();
       }
     };
@@ -183,6 +188,8 @@ export function App() {
       </main>
       {inspectorVisible && <Inspector projectId={project?.id ?? null} />}
       <SettingsSheet />
+      <Notice />
+      <Library />
       <CommandPalette />
     </div>
   );
@@ -248,6 +255,15 @@ function LimitMeter({ agent }: { agent: string }) {
       {text}
     </span>
   );
+}
+
+function Notice() {
+  const text = useStore((s) => s.notice);
+  return text ? (
+    <div className="notice" role="status">
+      {text}
+    </div>
+  ) : null;
 }
 
 function Hint({ skill, d }: { skill: string; d: string }) {

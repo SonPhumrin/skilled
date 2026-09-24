@@ -53,3 +53,12 @@ export const IconTerminal = ({ size = 16 }: P) =>
 
 export const IconGear = ({ size = 16 }: P) =>
   svg(size, <><circle cx="8" cy="8" r="2.2" /><path d="M8 1.8v1.6M8 12.6v1.6M1.8 8h1.6M12.6 8h1.6M3.6 3.6l1.1 1.1M11.3 11.3l1.1 1.1M3.6 12.4l1.1-1.1M11.3 4.7l1.1-1.1" /></>);
+
+export const IconLibrary = ({ size = 16 }: P) =>
+  svg(size, <><rect x="2.5" y="2.5" width="3" height="11" rx="0.8" /><rect x="6.5" y="2.5" width="3" height="11" rx="0.8" /><path d="m11 3.2 2.6.7-2.4 9.1-2.6-.7" /></>);
+
+export const IconCopy = ({ size = 14 }: P) =>
+  svg(size, <><rect x="5" y="5" width="8.5" height="8.5" rx="1.5" /><path d="M11 5V3.8A1.3 1.3 0 0 0 9.7 2.5H3.8a1.3 1.3 0 0 0-1.3 1.3v5.9A1.3 1.3 0 0 0 3.8 11H5" /></>);
+
+export const IconOpen = ({ size = 14 }: P) =>
+  svg(size, <><path d="M9 2.5h4.5V7" /><path d="M13.5 2.5 7.5 8.5" /><path d="M11.5 9.5v2.5a1.5 1.5 0 0 1-1.5 1.5H4A1.5 1.5 0 0 1 2.5 12V6A1.5 1.5 0 0 1 4 4.5h2.5" /></>);

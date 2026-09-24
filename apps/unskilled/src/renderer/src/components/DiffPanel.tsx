@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { DiffFile } from "../../../shared/types";
 import { api } from "../api";
-import { IconChevron } from "../icons";
+import { IconChevron, IconOpen } from "../icons";
 import { useStore } from "../store";
 
 /** The working tree's changes against HEAD, refreshed after every turn. */
@@ -30,20 +30,33 @@ export function DiffPanel({ projectId, refreshKey }: { projectId: string; refres
         const open = !closed[f.path];
         return (
           <div className="diff-file" key={f.path}>
-            <button className="diff-file-head" onClick={() => setClosed((c) => ({ ...c, [f.path]: open }))}>
-              <IconChevron open={open} />
-              <span className="path" title={f.path}>
-                {f.path}
-              </span>
-              {f.status !== "modified" && <span className="badge">{f.status === "untracked" ? "new" : f.status}</span>}
-              <span className="adds">+{f.additions}</span>
-              <span className="dels">−{f.deletions}</span>
-            </button>
+            <div className="diff-file-bar">
+              <button className="diff-file-head" onClick={() => setClosed((c) => ({ ...c, [f.path]: open }))}>
+                <IconChevron open={open} />
+                <span className="path" title={f.path}>
+                  {f.path}
+                </span>
+                {f.status !== "modified" && <span className="badge">{f.status === "untracked" ? "new" : f.status}</span>}
+                <span className="adds">+{f.additions}</span>
+                <span className="dels">−{f.deletions}</span>
+              </button>
+              {f.status !== "deleted" && (
+                <button className="icon-button file-open" title="Open in editor" onClick={() => void useStore.getState().openInEditor({ path: f.path, line: firstLine(f) })}>
+                  <IconOpen />
+                </button>
+              )}
+            </div>
             {open && (
               <div className="diff-lines">
                 {f.hunks.map((h, i) => (
                   <div key={i}>
-                    <div className="hunk">{h.header}</div>
+                    <button
+                      className="hunk"
+                      title="Open here in the editor"
+                      onClick={() => void useStore.getState().openInEditor({ path: f.path, line: hunkLine(h.header) })}
+                    >
+                      {h.header}
+                    </button>
                     {h.lines.map((l, j) => (
                       <div key={j} className={`line ${l.kind}`}>
                         {l.text}
@@ -58,4 +71,14 @@ export function DiffPanel({ projectId, refreshKey }: { projectId: string; refres
       })}
     </>
   );
+}
+
+/** The new file's line a hunk starts at: "@@ -39,7 +42,8 @@" is line 42. */
+export function hunkLine(header: string): number | undefined {
+  const m = /\+(\d+)/.exec(header);
+  return m ? Math.max(1, Number(m[1])) : undefined;
+}
+
+function firstLine(f: DiffFile): number | undefined {
+  return f.hunks[0] ? hunkLine(f.hunks[0].header) : undefined;
 }

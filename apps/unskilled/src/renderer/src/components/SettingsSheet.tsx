@@ -28,6 +28,7 @@ export function SettingsSheet() {
   const agents = useStore((s) => s.agents);
   const skills = useStore((s) => s.skills);
   const appUpdate = useStore((s) => s.appUpdate);
+  const editors = useStore((s) => s.editors);
   const setOpen = useStore((s) => s.setSettingsOpen);
   const panel = useRef<HTMLDivElement>(null);
 
@@ -99,6 +100,26 @@ export function SettingsSheet() {
               ))}
             </div>
           </div>
+        </section>
+
+        <section>
+          <h3>Editor</h3>
+          <div className="row">
+            <span className="label">Open files in</span>
+            {editors.length ? (
+              <select className="select" value={settings.editor ?? ""} onChange={(e) => update({ editor: e.target.value || null })}>
+                <option value="">{editors[0]!.label} (first found)</option>
+                {editors.slice(1).map((e) => (
+                  <option key={e.id} value={e.id}>
+                    {e.label}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <span className="value">No editors found</span>
+            )}
+          </div>
+          <p className="note">Used by Open in the Changes panel and by file links in the conversation. Picking another editor there makes it the default.</p>
         </section>
 
         <section>

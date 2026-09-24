@@ -3,6 +3,7 @@ import type {
   AgentInfo,
   DiffFile,
   LiveUpdate,
+  McpServerEntry,
   PermissionMode,
   PermissionDecision,
   SendRequest,
@@ -36,6 +37,8 @@ export class Service {
     private harnessTools: () => HarnessTool[] = () => [],
     /** Defaults for new threads, from the user's settings. */
     private defaults: () => { agent: string | null; permissionMode: PermissionMode } = () => ({ agent: null, permissionMode: "ask" }),
+    /** The user's enabled MCP servers, for every agent. */
+    private mcpServers: () => McpServerEntry[] = () => [],
   ) {
     if (!drivers.length) throw new Error("no agent drivers");
     this.drivers = new Map(drivers.map((d) => [d.id, d]));
@@ -120,6 +123,7 @@ export class Service {
         permissionMode: thread.permissionMode,
         signal: controller.signal,
         tools: this.harnessTools(),
+        mcpServers: this.mcpServers(),
         onEvent: (event) => this.emit(thread.id, event),
         onTextDelta: (text) => this.broadcast({ type: "text-delta", threadId: thread.id, text }),
         onSession: (sessionId) => {

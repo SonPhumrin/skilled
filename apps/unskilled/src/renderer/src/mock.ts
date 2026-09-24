@@ -1,4 +1,4 @@
-import type { LiveUpdate, Project, SettingsView, SkillEntry, StoredEvent, Thread, ThreadEvent, UnskilledApi } from "../../shared/types";
+import type { AgentCatalogEntry, LiveUpdate, McpOverview, Project, SettingsView, SkillEntry, StoredEvent, Thread, ThreadEvent, UnskilledApi } from "../../shared/types";
 
 /**
  * A fake backend for `npm run preview:ui`: the real renderer in a plain
@@ -22,6 +22,7 @@ export function installMock(): void {
     defaultAgent: null,
     defaultPermissionMode: "ask",
     autoUpdate: true,
+    editor: null,
     secretsSet: { anthropic: false, deepseek: true, openai: false },
     secretsEncrypted: true,
   };
@@ -81,7 +82,7 @@ export function installMock(): void {
       ev(17, {
         kind: "assistant-text",
         text: [
-          "Done. The limiter is a small middleware keyed by client IP:",
+          "Done. The limiter is a small middleware keyed by client IP, in `src/middleware/rateLimit.ts:3`:",
           "",
           "```ts",
           "export const loginLimiter = rateLimit({ windowMs: 60_000, max: 5 });",
@@ -119,6 +120,43 @@ export function installMock(): void {
     files: ["SKILL.md"],
     sha256: "",
   }));
+
+  const modelSkills: SkillEntry[] = [
+    ["tdd", "Test-driven development at agreed seams: one failing test, the smallest change that passes, then refactor."],
+    ["review-diff", "Review a diff for bugs, missing tests, and risky changes before it ships."],
+    ["verify-in-browser", "Check a UI change in a real browser, with a snapshot and a screenshot per criterion."],
+    ["git-guardrails", "Blocks destructive git commands before they run."],
+  ].map(([name, description]) => ({ name: name!, description: description!, invocation: "model" as const, calls: [], files: ["SKILL.md"], sha256: "" }));
+  const allSkills = [...skills.map((s) => (s.name === "implement" ? { ...s, calls: ["tdd", "review-diff"], argumentHint: "[ticket or spec]", files: ["SKILL.md", "references/seams.md"] } : s)), ...modelSkills];
+  const agentCatalog: AgentCatalogEntry[] = [
+    { id: "claude", label: "Claude", kind: "agent-sdk", command: null, installed: true, source: "built-in", skills: "As a plugin, named skilled:<name>, loaded when the task calls for it", mcp: "Stdio and HTTP servers, the browser tools in-process, plus Claude Code's own config" },
+    { id: "deepseek", label: "DeepSeek", kind: "acp", command: "dsh --profile acp", installed: true, source: "built-in", skills: "Through DSH_BUNDLED_SKILL_DIR, loaded when the task calls for it", mcp: "Stdio servers, and HTTP ones (with the browser tools) when the agent supports them" },
+    { id: "codex", label: "Codex", kind: "app-server", command: "codex app-server", installed: false, source: "built-in", install: "npm install -g @openai/codex", skills: "As an extra skills folder, loaded when the task calls for it", mcp: "Stdio and HTTP servers, the browser tools, plus ~/.codex/config.toml" },
+    { id: "gemini", label: "Gemini", kind: "acp", command: "gemini --acp", installed: false, source: "built-in", install: "npm install -g @google/gemini-cli", skills: "Not automatic: run `python3 install.py --model-only` from skilled in the project (it reads .agents/skills)", mcp: "Stdio servers, and HTTP ones (with the browser tools) when the agent supports them" },
+    { id: "opencode", label: "OpenCode", kind: "acp", command: "opencode acp", installed: false, source: "built-in", install: "npm install -g opencode-ai", skills: "Not automatic: run `python3 install.py --model-only` from skilled in the project (it reads .agents/skills)", mcp: "Stdio servers, and HTTP ones (with the browser tools) when the agent supports them" },
+  ];
+  let mcp: McpOverview = {
+    builtIn: {
+      name: "unskilled",
+      active: false,
+      tools: [
+        { name: "browser_open", description: "Open a URL in the browser pane", autoAllow: true },
+        { name: "browser_snapshot", description: "Text snapshot with element refs", autoAllow: true },
+        { name: "browser_click", description: "Click an element", autoAllow: true },
+        { name: "browser_eval", description: "Run JavaScript in the page", autoAllow: false },
+      ],
+    },
+    servers: [
+      { name: "github", enabled: true, type: "stdio", target: "npx -y @modelcontextprotocol/server-github", envKeys: ["GITHUB_TOKEN"], headerKeys: [] },
+      { name: "linear", enabled: false, type: "http", target: "https://mcp.linear.app/mcp", envKeys: [], headerKeys: ["Authorization"] },
+    ],
+    external: [
+      { name: "sentry", type: "http", target: "https://mcp.sentry.dev/mcp", agent: "Claude", source: "~/.claude.json" },
+      { name: "postgres", type: "stdio", target: "uvx postgres-mcp --readonly", agent: "Claude", source: ".mcp.json" },
+      { name: "fs", type: "stdio", target: "npx -y @modelcontextprotocol/server-filesystem ~/code", agent: "Codex", source: "~/.codex/config.toml" },
+    ],
+    file: "~/Library/Application Support/UnSkilled/mcp.json",
+  };
 
   const api: UnskilledApi = {
     platform: params.get("platform") ?? "darwin",
@@ -193,6 +231,52 @@ export function installMock(): void {
             },
           ]
         : [],
+    listAllSkills: async () => allSkills,
+    getSkillDetail: async (name) => {
+      const skill = allSkills.find((x) => x.name === name)!;
+      return {
+        skill,
+        dir: `/Applications/UnSkilled.app/Contents/Resources/skilled/skills/${name}`,
+        calledBy: allSkills.filter((x) => x.calls.includes(name)).map((x) => x.name),
+        routes: agentCatalog
+          .filter((a) => a.installed)
+          .map((a) => ({ agent: a.label, how: skill.invocation === "user" ? "From the / menu: the app puts the skill's text into your message" : a.skills })),
+        body: `# ${name}\n\n${skill.description}\n\n## Steps\n\n1. Read the ticket and the code it touches.\n2. Agree the seam to test at, then write **one** failing test.\n3. Make it pass with the smallest change, then refactor.\n\n\`\`\`bash\nnpm test -- --watch\n\`\`\`\n\n- Stop and ask when the spec and the code disagree.\n- Never weaken a test to make it pass.`,
+      };
+    },
+    listAgentCatalog: async () => agentCatalog,
+    getMcp: async () => mcp,
+    saveMcpServer: async (entry, previous) => {
+      const view = {
+        name: entry.name,
+        enabled: entry.enabled,
+        type: entry.spec.type,
+        target: entry.spec.type === "http" ? entry.spec.url : [entry.spec.command, ...(entry.spec.args ?? [])].join(" "),
+        envKeys: entry.spec.type === "stdio" ? Object.keys(entry.spec.env ?? {}) : [],
+        headerKeys: entry.spec.type === "http" ? Object.keys(entry.spec.headers ?? {}) : [],
+      };
+      mcp = { ...mcp, servers: [...mcp.servers.filter((x) => x.name !== (previous ?? entry.name)), view] };
+      return mcp;
+    },
+    removeMcpServer: async (name) => (mcp = { ...mcp, servers: mcp.servers.filter((x) => x.name !== name) }),
+    setMcpServerEnabled: async (name, enabled) => (mcp = { ...mcp, servers: mcp.servers.map((x) => (x.name === name ? { ...x, enabled } : x)) }),
+    testMcpServer: async (name) => {
+      await new Promise((r) => setTimeout(r, 400));
+      return name === "github"
+        ? { ok: true, tools: ["search_issues", "create_issue", "get_pull_request"].map((n) => ({ name: n, description: "" })) }
+        : { ok: false, tools: [], error: "401 Unauthorized" };
+    },
+    revealPath: async () => {},
+    listEditors: async () => [
+      { id: "cursor", label: "Cursor" },
+      { id: "vscode", label: "VS Code" },
+      { id: "zed", label: "Zed" },
+      { id: "webstorm", label: "WebStorm" },
+    ],
+    openInEditor: async (target, editor) => {
+      (window as unknown as { __opened?: unknown[] }).__opened = [...((window as unknown as { __opened?: unknown[] }).__opened ?? []), { ...target, editor }];
+      return target.path.includes("missing") ? { ok: false, error: `${target.path} doesn't exist.` } : { ok: true, editor: editor ?? "cursor" };
+    },
     updateStatus: async () => ({ current: "0.1.0", ready: scene === "update" ? "0.2.0" : null, supported: true }),
     installUpdate: async () => {},
     terminalResize: () => {},
@@ -249,6 +333,10 @@ export function installMock(): void {
   // Scenes that need live state once the app has subscribed.
   setTimeout(() => {
     if (scene === "settings") openSettingsSheet();
+    if (scene.startsWith("library")) {
+      const tab = scene === "library-mcp" ? "mcp" : scene === "library-agents" ? "agents" : "skills";
+      void import("./store").then(({ useStore }) => useStore.setState({ libraryTab: tab, librarySkill: scene === "library" ? "implement" : null }));
+    }
     if (scene === "palette") void import("./store").then(({ useStore }) => useStore.getState().setPaletteOpen(true));
     if (scene === "running" || scene === "permission") {
       emit({ type: "running", threadId: "t1", running: true });

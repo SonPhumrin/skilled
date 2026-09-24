@@ -20,8 +20,9 @@ import { closeAfter } from "./helpers";
 const codex = process.env.UNSKILLED_CODEX_BIN ?? (onPath("codex") ? "codex" : null);
 
 /** A model that calls mcp__unskilled.browser_eval whenever it's offered and not yet called this turn. */
-async function fakeModel(): Promise<{ server: Server; url: string; offered: string[][] }> {
+async function fakeModel(): Promise<{ server: Server; url: string; offered: string[][]; namespaces: string[][] }> {
   const offered: string[][] = [];
+  const namespaces: string[][] = [];
   let n = 0;
   const sse = (events: object[]) => events.map((e) => `event: ${(e as { type: string }).type}\ndata: ${JSON.stringify(e)}\n\n`).join("");
   const server = createServer((req, res) => {
@@ -32,6 +33,7 @@ async function fakeModel(): Promise<{ server: Server; url: string; offered: stri
       const request = JSON.parse(body) as { tools?: { name?: string; tools?: { name: string }[] }[]; input: unknown };
       const ns = request.tools?.find((t) => t.name === "mcp__unskilled");
       offered.push(ns?.tools?.map((t) => t.name) ?? []);
+      namespaces.push((request.tools ?? []).filter((t) => t.tools).map((t) => `${t.name}: ${t.tools!.map((x) => x.name).join(",")}`));
       const id = `r${++n}`;
       const called = JSON.stringify(request.input).includes("function_call_output");
       const item =
@@ -58,7 +60,7 @@ async function fakeModel(): Promise<{ server: Server; url: string; offered: stri
     });
   });
   await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
-  return { server, url: `http://127.0.0.1:${(server.address() as AddressInfo).port}/v1`, offered };
+  return { server, url: `http://127.0.0.1:${(server.address() as AddressInfo).port}/v1`, offered, namespaces };
 }
 
 describe.skipIf(!codex)("Codex end to end (real app-server, fake model)", () => {
@@ -111,6 +113,8 @@ describe.skipIf(!codex)("Codex end to end (real app-server, fake model)", () => 
         permissionMode: "ask",
         signal: new AbortController().signal,
         tools: [],
+        // A user MCP server (mcp.json), there from the first turn.
+        mcpServers: [{ name: "docs", enabled: true, spec: { type: "stdio", command: process.execPath, args: [join(__dirname, "fixtures", "mock-mcp-stdio.mjs")] } }],
         onEvent: (e) => events.push(e),
         onTextDelta: () => {},
         onSession: (s) => (session = s),
@@ -126,6 +130,7 @@ describe.skipIf(!codex)("Codex end to end (real app-server, fake model)", () => 
     const first = await run({});
     expect(first.events.find((e) => e.kind === "assistant-text")).toMatchObject({ text: "Hello." });
     expect(model.offered.at(-1)).toEqual([]);
+    expect(model.namespaces[0]).toContain("mcp__docs: whoami");
     // Limits come from the model's response headers, with no extra request.
     expect(limitReports.flatMap((p) => p.windows ?? [])).toContainEqual({ id: "codex:primary", label: "5-hour", usedPercent: 42, resetsAt: 1_790_000_000_000 });
     expect(limitReports.flatMap((p) => p.windows ?? [])).toContainEqual({ id: "codex:secondary", label: "Weekly", usedPercent: 9, resetsAt: null });

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { PermissionMode, Theme } from "../../../shared/types";
 import { api } from "../api";
 import { rankCommands, type Command } from "../palette";
+import { fileManagerName } from "./OpenIn";
 import { useSelectedThread, useStore } from "../store";
 
 const MODES: { id: PermissionMode; label: string }[] = [
@@ -28,6 +29,7 @@ function Palette() {
   const skills = useStore((s) => s.skills);
   const agents = useStore((s) => s.agents);
   const settings = useStore((s) => s.settings);
+  const editors = useStore((s) => s.editors);
   const selectedProjectId = useStore((s) => s.selectedProjectId);
   const inspectorOpen = useStore((s) => s.inspectorOpen);
   const thread = useSelectedThread();
@@ -48,10 +50,20 @@ function Palette() {
 
     if (selectedProjectId) action("new-thread", "New Thread", () => void s.newThread(), { shortcut: key("N") });
     action("add-project", "Add Project…", () => void s.addProject(), { keywords: "open folder" });
+    action("library-skills", "Library: Skills", () => useStore.setState({ libraryTab: "skills" }), { shortcut: mac ? "⌘⇧L" : "Ctrl+Shift+L", keywords: "plugins browse skilled" });
+    action("library-mcp", "Library: MCP Servers", () => useStore.setState({ libraryTab: "mcp" }), { keywords: "mcp tools add server" });
+    action("library-agents", "Library: Agents", () => useStore.setState({ libraryTab: "agents" }), { keywords: "install gemini opencode codex" });
     action("settings", "Settings…", () => s.setSettingsOpen(true), { shortcut: key(","), keywords: "preferences api keys" });
     if (selectedProjectId) action("changes", "Show Changes", () => s.showInspector("changes"), { shortcut: mac ? "⌘⇧D" : "Ctrl+Shift+D", keywords: "diff git" });
     action("browser", "Show Browser", () => s.showInspector("browser"), { shortcut: mac ? "⌘⇧B" : "Ctrl+Shift+B", keywords: "web page preview" });
     action("terminal", "Show Terminal", () => s.showInspector("terminal"), { shortcut: "⌃`", keywords: "shell console" });
+    if (selectedProjectId) {
+      const preferred = settings?.editor ?? null;
+      const ordered = [...editors].sort((a, b) => Number(b.id === preferred) - Number(a.id === preferred));
+      for (const e of ordered) action(`open-in:${e.id}`, `Open Project in ${e.label}`, () => void s.openInEditor({}, e.id), { keywords: "editor ide" });
+      const project = projects.find((p) => p.id === selectedProjectId);
+      if (project) action("reveal-project", `Show Project in ${fileManagerName()}`, () => void api().revealPath(project.path), { keywords: "finder explorer folder reveal" });
+    }
     if (inspectorOpen) action("hide-inspector", "Hide Side Panel", () => s.toggleInspector(), { keywords: "inspector close" });
     if (thread && running) action("stop", "Stop the Running Turn", () => void s.interrupt(), { shortcut: "Esc", keywords: "interrupt cancel" });
     if (thread && !running) {
@@ -105,7 +117,7 @@ function Palette() {
       out.push({ id: `project:${p.id}`, section: "Projects", title: p.name, detail: p.path, run: () => void s.selectProject(p.id) });
     }
     return out;
-  }, [projects, threads, skills, agents, settings, selectedProjectId, inspectorOpen, thread, running]);
+  }, [projects, threads, skills, agents, settings, editors, selectedProjectId, inspectorOpen, thread, running]);
 
   const results = useMemo(() => rankCommands(commands, query), [commands, query]);
   useEffect(() => setIndex(0), [query]);

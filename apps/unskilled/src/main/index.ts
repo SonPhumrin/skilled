@@ -1,8 +1,9 @@
-import { mkdirSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { homedir } from "node:os";
+import { isAbsolute, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { BrowserWindow, app, dialog, ipcMain, nativeTheme, safeStorage, shell } from "electron";
-import type { LiveUpdate, PermissionDecision, SecretName, SendRequest, Settings, Thread } from "../shared/types";
+import type { LiveUpdate, McpOverview, McpServerEntry, OpenResult, PermissionDecision, SecretName, SendRequest, Settings, Thread } from "../shared/types";
 import { spawnSync } from "node:child_process";
 import { createAcpDriver } from "./agents/acp/driver";
 import { createClaudeDriver, resolvePackagedClaudeBinary } from "./agents/claude";
@@ -16,6 +17,10 @@ import { startToolServer, type ToolServer } from "./mcp-http";
 import { TerminalManager } from "./terminal";
 import { Service } from "./service";
 import { SECRET_ENV, SettingsStore } from "./settings";
+import { agentCatalog, skillDetail } from "./library";
+import { Editors, realHost } from "./editors";
+import { readExternalMcp } from "./mcp/external";
+import { BUILT_IN_SERVER, McpServerStore, testServer, viewOf } from "./mcp/servers";
 import { Updater, type UpdaterBackend } from "./updater";
 import { defaultSkillsCandidates, findSkillsRoot, loadCatalog } from "./skills/catalog";
 import { ensureModelSkillsDir, ensurePlugin } from "./skills/plugin";
@@ -141,7 +146,7 @@ async function main(): Promise<void> {
   );
   const tools = browserTools(browser);
   // Claude first (the default for new threads), then any installed ACP agents.
-  const { agents: acpAgents, problems } = loadAcpAgents(join(userData, "agents.json"));
+  const { agents: acpAgents, custom: customAgents, problems } = loadAcpAgents(join(userData, "agents.json"));
   for (const p of problems) console.warn(p);
   const modelSkillsDir = join(userData, "skilled-skills");
   const enabledTools = () => (browser.enabled ? tools : []);
@@ -171,9 +176,82 @@ async function main(): Promise<void> {
       }),
     ),
   ];
-  const service = new Service(store, catalog, drivers, broadcast, enabledTools, () => {
-    const s = settings.get();
-    return { agent: s.defaultAgent, permissionMode: s.defaultPermissionMode };
+  const mcpStore = new McpServerStore(join(userData, "mcp.json"));
+  const service = new Service(
+    store,
+    catalog,
+    drivers,
+    broadcast,
+    enabledTools,
+    () => {
+      const s = settings.get();
+      return { agent: s.defaultAgent, permissionMode: s.defaultPermissionMode };
+    },
+    () => mcpStore.enabled(),
+  );
+
+  // The Library: skills, agents, and MCP servers, as the agents will see them.
+  const catalogOfAgents = () => agentCatalog({ installed: (c) => onPath(c), custom: customAgents });
+  const projectPathOf = (projectId: string | null) => {
+    try {
+      return projectId ? store.getProject(projectId).path : null;
+    } catch {
+      return null;
+    }
+  };
+  const mcpOverview = (projectId: string | null): McpOverview => ({
+    builtIn: {
+      name: BUILT_IN_SERVER,
+      active: browser.enabled,
+      tools: tools.map((t) => ({ name: t.name, description: t.description, autoAllow: t.autoAllow })),
+    },
+    servers: mcpStore.list().map(viewOf),
+    external: readExternalMcp({ projectPath: projectPathOf(projectId) }),
+    file: join(userData, "mcp.json"),
+  });
+  ipcMain.handle("library:skills", () => catalog.skills);
+  ipcMain.handle("library:skill", (_e, name: string) => skillDetail(catalog, name, catalogOfAgents()));
+  ipcMain.handle("library:agents", () => catalogOfAgents());
+  ipcMain.handle("mcp:get", (_e, projectId: string | null) => mcpOverview(projectId));
+  ipcMain.handle("mcp:save", (_e, entry: McpServerEntry, previousName?: string) => {
+    mcpStore.save(entry, previousName);
+    return mcpOverview(null);
+  });
+  ipcMain.handle("mcp:remove", (_e, name: string) => {
+    mcpStore.remove(name);
+    return mcpOverview(null);
+  });
+  ipcMain.handle("mcp:enable", (_e, name: string, enabled: boolean) => {
+    mcpStore.setEnabled(name, enabled);
+    return mcpOverview(null);
+  });
+  ipcMain.handle("mcp:test", async (_e, name: string) => {
+    const entry = mcpStore.list().find((s) => s.name === name);
+    return entry ? testServer(entry.spec) : { ok: false, tools: [], error: "No such server." };
+  });
+  // Open in editor. The agents' API keys (set from Settings) stay out of the editor's environment.
+  const editors = new Editors(realHost(), () => Object.keys(settings.env()));
+  ipcMain.handle("editors:list", () => editors.list());
+  ipcMain.handle(
+    "editors:open",
+    async (_e, target: { projectId: string | null; path: string; line?: number; column?: number }, editorId?: string): Promise<OpenResult> => {
+      const base = projectPathOf(target.projectId);
+      const raw = target.path.startsWith("~/") ? join(homedir(), target.path.slice(2)) : target.path;
+      const path = isAbsolute(raw) ? raw : base ? resolve(base, raw) : null;
+      if (!path || !existsSync(path)) return { ok: false, error: `${target.path} doesn't exist.` };
+      const line = Number.isInteger(target.line) && target.line! > 0 ? target.line : undefined;
+      const column = line && Number.isInteger(target.column) && target.column! > 0 ? target.column : undefined;
+      const res = await editors.open({ path, line, column }, editorId ?? settings.get().editor);
+      // Picking an editor makes it the default from then on.
+      if (res.ok && editorId && editorId !== settings.get().editor) {
+        settings.update({ editor: editorId });
+        broadcast({ type: "settings", settings: settings.view() });
+      }
+      return res;
+    },
+  );
+  ipcMain.handle("app:reveal", (_e, path: string) => {
+    if (typeof path === "string" && existsSync(path)) shell.showItemInFolder(path);
   });
 
   const updater = new Updater(
@@ -270,18 +348,28 @@ async function main(): Promise<void> {
     new Promise<boolean>((resolve) => {
       let out = "";
       let settled = false;
+      let exited: () => void = () => {};
       const probe = new TerminalManager({
         data: (_id, d) => {
           out += d;
           if (!settled && out.includes("unskilled-term-ok")) {
             settled = true;
             clearTimeout(timer);
-            probe.dispose();
             console.log("smoke: terminal ok");
-            resolve(true);
+            // Let the shell exit by itself: killing a Windows pty forks node-pty's
+            // console-list helper, which crashes if the app exits under it.
+            const fallback = setTimeout(() => {
+              probe.dispose();
+              resolve(true);
+            }, 5_000);
+            exited = () => {
+              clearTimeout(fallback);
+              resolve(true);
+            };
+            probe.write("smoke", "exit\r");
           }
         },
-        exit: () => {},
+        exit: () => exited(),
       });
       const timer = setTimeout(() => {
         probe.dispose();
@@ -305,11 +393,11 @@ async function main(): Promise<void> {
     });
     first.webContents.on("did-attach-webview", () => console.log("smoke: webview attached"));
     // CI smoke test: the window loads, the preload bridge is there, and the
-    // skills catalog and settings answer. Exit 0 only if everything holds.
+    // skills catalog, settings, and Library answer. Exit 0 only if everything holds.
     first.webContents.once("did-finish-load", async () => {
       try {
         const ok = await first.webContents.executeJavaScript(
-          "typeof window.unskilled === 'object' && Promise.all([window.unskilled.listSkills(), window.unskilled.getSettings()]).then(([s, st]) => s.length > 0 && typeof st.theme === 'string')",
+          "typeof window.unskilled === 'object' && Promise.all([window.unskilled.listSkills(), window.unskilled.getSettings(), window.unskilled.listAllSkills(), window.unskilled.getMcp(null), window.unskilled.listAgentCatalog()]).then(([s, st, all, mcp, agents]) => s.length > 0 && typeof st.theme === 'string' && all.length > s.length && mcp.builtIn.tools.length > 0 && agents.some((a) => a.id === 'claude'))",
         );
         // A packaged build must be able to launch the Claude Code binary the
         // Agent SDK ships, from outside the asar archive.
