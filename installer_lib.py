@@ -196,32 +196,9 @@ def validate_field_type(path, field, expected_type, type_name):
         sys.exit(1)
 
 
-def validate_markers(path, start, end):
-    """Exit 1 if a CLAUDE.md-style file has an unbalanced/duplicated/reversed
-    marker pair. No file, or no markers at all, is fine."""
-    if not os.path.exists(path):
-        return
-    content = open(path).read()
-    start_count = content.count(start)
-    end_count = content.count(end)
-    if start_count == 0 and end_count == 0:
-        return
-    if start_count == 1 and end_count == 1:
-        if content.index(start) < content.index(end):
-            return
-        print(f"error: {path} has the opencode-delegation end marker before the start marker -- refusing to touch it, fix by hand", file=sys.stderr)
-        sys.exit(1)
-    print(
-        f"error: {path} has {start_count} start marker(s) and {end_count} end marker(s) "
-        "(expected exactly one of each, or neither) -- refusing to touch it, fix by hand",
-        file=sys.stderr,
-    )
-    sys.exit(1)
-
-
 def _main():
     if len(sys.argv) < 2:
-        print("usage: installer_lib.py <check|record|remove|entry-kind|validate-json|validate-field|validate-markers> ...", file=sys.stderr)
+        print("usage: installer_lib.py <check|record|remove|entry-kind|validate-json|validate-field> ...", file=sys.stderr)
         sys.exit(2)
     cmd = sys.argv[1]
     args = sys.argv[2:]
@@ -249,9 +226,6 @@ def _main():
         expected = {"list": list, "dict": dict}[type_name]
         validate_json_object(path)
         validate_field_type(path, field, expected, type_name)
-    elif cmd == "validate-markers":
-        path, start, end = args[0], args[1], args[2]
-        validate_markers(path, start, end)
     else:
         print(f"error: unknown command {cmd}", file=sys.stderr)
         sys.exit(2)

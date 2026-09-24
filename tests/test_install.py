@@ -2,7 +2,7 @@
 """Regression tests for install.sh's ownership-manifest safety.
 
 Runs install.sh against a small isolated fake "skilled repo" (a couple of
-fake skills + fake opencode-delegation files) inside a tempdir -- never
+fake skills) inside a tempdir -- never
 against this actual repo or the user's home/projects. Standard library only
 (subprocess + tempfile + unittest), matching the rest of this repo's
 zero-dependency test setup.
@@ -21,15 +21,13 @@ REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
 def build_fake_repo(root):
-    """A minimal stand-in for the real skilled repo: 2 fake skills, 2 fake
-    opencode-delegation files, this repo's real install.sh + installer_lib.py.
+    """A minimal stand-in for the real skilled repo: 2 fake skills, this
+    repo's real install.sh + installer_lib.py.
     Keeps tests fast and, critically, means a bug in a test can never touch
     this actual repo's real files."""
     repo = os.path.join(root, "fake-skilled-repo")
     os.makedirs(os.path.join(repo, "skills", "skill-a"))
     os.makedirs(os.path.join(repo, "skills", "skill-b"))
-    os.makedirs(os.path.join(repo, "opencode-delegation", "commands"))
-    os.makedirs(os.path.join(repo, "opencode-delegation", "agents"))
 
     shutil.copy(os.path.join(REPO_ROOT, "install.sh"), os.path.join(repo, "install.sh"))
     shutil.copy(os.path.join(REPO_ROOT, "installer_lib.py"), os.path.join(repo, "installer_lib.py"))
@@ -38,17 +36,6 @@ def build_fake_repo(root):
     for name in ("skill-a", "skill-b"):
         with open(os.path.join(repo, "skills", name, "SKILL.md"), "w") as f:
             f.write(f"---\nname: {name}\ndescription: fake {name} for install.sh tests\n---\ncontent\n")
-
-    with open(os.path.join(repo, "opencode-delegation", "commands", "oc.md"), "w") as f:
-        f.write("fake oc command\n")
-    with open(os.path.join(repo, "opencode-delegation", "agents", "orchestrator.md"), "w") as f:
-        f.write("fake orchestrator agent\n")
-    with open(os.path.join(repo, "opencode-delegation", "CLAUDE.fragment.md"), "w") as f:
-        f.write(
-            "<!-- skilled:opencode-delegation:start -->\n"
-            "fake delegation policy fragment\n"
-            "<!-- skilled:opencode-delegation:end -->\n"
-        )
     return repo
 
 
@@ -77,21 +64,6 @@ class InstallerTestCase(unittest.TestCase):
 class TestOwnershipConflicts(InstallerTestCase):
     """A project's own files, colliding by name with something skilled would
     install, must never be silently overwritten or deleted."""
-
-    def test_custom_opencode_delegation_command_survives_install(self):
-        project = self.new_project()
-        commands_dir = os.path.join(project, ".claude", "commands")
-        os.makedirs(commands_dir)
-        marker = "MY OWN CUSTOM oc COMMAND - DO NOT TOUCH"
-        with open(os.path.join(commands_dir, "oc.md"), "w") as f:
-            f.write(marker + "\n")
-
-        result = self.run_install(project, "--opencode-delegation")
-        self.assertEqual(result.returncode, 0)
-        self.assertIn("skipped", result.stdout + result.stderr)
-
-        with open(os.path.join(commands_dir, "oc.md")) as f:
-            self.assertIn(marker, f.read())
 
     def test_same_name_custom_vendored_skill_survives_install(self):
         project = self.new_project()
@@ -157,14 +129,12 @@ class TestUninstall(InstallerTestCase):
 class TestModeConversion(InstallerTestCase):
     def test_symlink_to_vendor_does_not_corrupt_repo_source(self):
         project = self.new_project()
-        self.run_install(project, "--claude", "--opencode-delegation", check=True)
+        self.run_install(project, "--claude", check=True)
 
-        self.run_install(project, "--claude", "--opencode-delegation", "--vendor", check=True)
+        self.run_install(project, "--claude", "--vendor", check=True)
 
-        with open(os.path.join(self.repo, "opencode-delegation", "commands", "oc.md")) as f:
-            self.assertEqual(f.read(), "fake oc command\n")
-        oc_dest = os.path.join(project, ".claude", "commands", "oc.md")
-        self.assertFalse(os.path.islink(oc_dest))
+        with open(os.path.join(self.repo, "skills", "skill-a", "SKILL.md")) as f:
+            self.assertEqual(f.read(), "---\nname: skill-a\ndescription: fake skill-a for install.sh tests\n---\ncontent\n")
         skill_a_dest = os.path.join(project, ".claude", "skills", "skill-a")
         self.assertFalse(os.path.islink(skill_a_dest))
         self.assertTrue(os.path.isdir(skill_a_dest))
@@ -181,30 +151,6 @@ class TestModeConversion(InstallerTestCase):
 
 
 class TestPreflight(InstallerTestCase):
-    def test_unbalanced_claude_md_marker_is_refused_not_corrupted(self):
-        project = self.new_project()
-        claude_md = os.path.join(project, "CLAUDE.md")
-        trailing = "MY IMPORTANT TRAILING NOTES THAT MUST SURVIVE"
-        with open(claude_md, "w") as f:
-            f.write("<!-- skilled:opencode-delegation:start -->\nstale content\n" + trailing + "\n")
-
-        result = self.run_install(project, "--opencode-delegation")
-        self.assertNotEqual(result.returncode, 0)
-
-        with open(claude_md) as f:
-            self.assertIn(trailing, f.read())
-
-    def test_duplicate_start_marker_is_refused(self):
-        project = self.new_project()
-        claude_md = os.path.join(project, "CLAUDE.md")
-        with open(claude_md, "w") as f:
-            f.write(
-                "<!-- skilled:opencode-delegation:start -->\nx\n<!-- skilled:opencode-delegation:end -->\n"
-                "<!-- skilled:opencode-delegation:start -->\ny\n"
-            )
-        result = self.run_install(project, "--opencode-delegation")
-        self.assertNotEqual(result.returncode, 0)
-
     def test_malformed_opencode_json_aborts_before_any_mutation(self):
         project = self.new_project()
         with open(os.path.join(project, "opencode.json"), "w") as f:
