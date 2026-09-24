@@ -36,6 +36,30 @@ export interface Settings {
   autoUpdate: boolean;
 }
 
+/** One plan rate-limit window, e.g. Claude's 5-hour or Codex's weekly limit. */
+export interface LimitWindow {
+  id: string;
+  label: string;
+  /** 0-100, or null when the agent only said the window exists. */
+  usedPercent: number | null;
+  /** Epoch ms. */
+  resetsAt: number | null;
+}
+
+/**
+ * An agent's subscription rate limits, as the agent last reported them. They
+ * arrive with its normal responses (Claude's rate-limit events, Codex's
+ * rate-limit notifications); the app never asks for them separately.
+ */
+export interface AgentLimits {
+  agent: string;
+  windows: LimitWindow[];
+  /** "warning": close to a limit. "limited": a limit was hit. */
+  state: "ok" | "warning" | "limited";
+  plan: string | null;
+  updatedAt: number;
+}
+
 export interface AppUpdateStatus {
   current: string;
   /** A downloaded version waiting for a restart. */
@@ -147,7 +171,8 @@ export type LiveUpdate =
   | { type: "terminal-data"; id: string; data: string }
   | { type: "terminal-exit"; id: string; code: number }
   | { type: "settings"; settings: SettingsView }
-  | { type: "app-update"; status: AppUpdateStatus };
+  | { type: "app-update"; status: AppUpdateStatus }
+  | { type: "limits"; limits: AgentLimits };
 
 /** The API the preload script exposes as `window.unskilled`. */
 export interface UnskilledApi {
@@ -181,6 +206,8 @@ export interface UnskilledApi {
   /** Show the app's data folder (agents.json, the database) in the file manager. */
   openDataFolder(): Promise<void>;
   updateStatus(): Promise<AppUpdateStatus>;
+  /** Rate limits reported so far, by agent. */
+  listLimits(): Promise<AgentLimits[]>;
   /** Quit and install the downloaded update. */
   installUpdate(): Promise<void>;
   onUpdate(listener: (update: LiveUpdate) => void): () => void;

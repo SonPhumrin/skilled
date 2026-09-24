@@ -130,6 +130,8 @@ createInterface({ input: process.stdin }).on("line", async (line) => {
       notify("item/agentMessage/delta", { threadId, turnId: turn.id, itemId: "m2", delta: text });
       notify("item/completed", { threadId, turnId: turn.id, item: { type: "agentMessage", id: "m2", text: `Hi, ${text}` } });
       notify("thread/tokenUsage/updated", { threadId, turnId: turn.id, tokenUsage: { last: { inputTokens: 900, cachedInputTokens: 0, outputTokens: 12, totalTokens: 912, reasoningOutputTokens: 0, cacheWriteInputTokens: 0 }, total: {}, modelContextWindow: null } });
+      // Codex sends these as responses arrive: sparse, account-wide, no threadId.
+      notify("account/rateLimits/updated", { rateLimits: { limitId: "codex", primary: { usedPercent: 37, windowDurationMins: 300, resetsAt: 1790000000 }, secondary: null, planType: "plus" } });
       return done("completed");
     }
     default:

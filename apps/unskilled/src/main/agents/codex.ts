@@ -1,5 +1,6 @@
 import type { ModelOption, PermissionDecision, PermissionMode } from "../../shared/types";
 import { RpcError, StdioRpc } from "./rpc";
+import { codexLimitsPatch, type CodexRateLimits, type LimitsListener } from "./limits";
 import { summarizeToolInput, summarizeToolResult } from "./summarize";
 import type { AgentDriver, HarnessTool, TurnInput } from "./types";
 
@@ -41,6 +42,8 @@ export interface CodexConfig {
   skillsDir?: () => string;
   /** The harness's tools over HTTP MCP (the browser pane's), attached per thread. */
   toolServer?: () => Promise<{ url: string; token: string }>;
+  /** Plan rate limits, from the notifications Codex sends with its responses. */
+  onLimits?: LimitsListener;
 }
 
 /** The MCP server name the harness's tools go by, in Codex's config and its tool calls. */
@@ -116,6 +119,11 @@ export function createCodexDriver(config: CodexConfig): AgentDriver {
   const alwaysAllowed = new Map<string, Set<string>>();
 
   const onNotification = (method: string, params: unknown) => {
+    if (method === "account/rateLimits/updated") {
+      // Account-wide, sent as responses come in; never asked for with account/rateLimits/read.
+      config.onLimits?.(codexLimitsPatch((params as { rateLimits: CodexRateLimits }).rateLimits));
+      return;
+    }
     const p = params as { threadId?: string; turnId?: string; itemId?: string; delta?: string; item?: ThreadItem; turn?: Turn };
     const t = p.threadId ? turns.get(p.threadId) : undefined;
     if (!t) return;

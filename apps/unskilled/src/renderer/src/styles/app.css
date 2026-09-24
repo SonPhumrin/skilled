@@ -652,6 +652,22 @@ button { cursor: default; }
 .update-ready .version { color: var(--text-secondary); font-size: 11px; }
 .sidebar-foot .button.block { flex: 1; }
 
+.limit-meter {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--text-tertiary);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.limit-meter .bar { width: 28px; height: 4px; border-radius: 2px; background: var(--hairline-strong); overflow: hidden; }
+.limit-meter .bar i { display: block; height: 100%; background: var(--text-tertiary); border-radius: inherit; }
+.limit-meter.warning { color: var(--warning); }
+.limit-meter.warning .bar i { background: var(--warning); }
+.limit-meter.limited { color: var(--danger); }
+.limit-meter.limited .bar i { background: var(--danger); }
+
 .usage {
   font-size: 11px;
   color: var(--text-tertiary);
