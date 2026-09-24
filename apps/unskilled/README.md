@@ -37,6 +37,7 @@ The Browser tab (⌘⇧B) is a real Chromium page beside the thread: open your d
 - Snapshots are text with element refs (`[e3] button "Sign in"`), a fraction of a screenshot's tokens. Screenshots are saved to files, and the model sees the image only when it asks.
 - Clicks are real mouse events through the Chrome DevTools Protocol. Console errors, uncaught exceptions, and failed or 4xx/5xx requests are captured as they happen.
 - `verify-in-browser` picks these tools up automatically, so a UI check runs where you can watch it.
+- **Pick an element** with the target button: hover to highlight, click to add the element's selector, text, HTML, and a cropped screenshot to your message. Esc cancels.
 - The pane has no Node access and no preload, and loads only http(s), file, and data URLs. `browser_eval` asks before it runs in Ask mode; the other tools don't.
 
 ## Running it
@@ -83,5 +84,5 @@ Electron 44 (the same Chromium on every OS, which the built-in browser needs), R
 
 ## Roadmap
 
-- **Milestone 2:** ~~the built-in browser pane~~, ~~the generic ACP driver~~, and ~~browser tools for ACP agents~~ (done). Still to come: Codex (app-server), an element picker in the browser, and a terminal tab.
+- **Milestone 2:** ~~the built-in browser pane~~, ~~the generic ACP driver~~, and ~~browser tools for ACP agents~~, and ~~the element picker~~ (done). Still to come: Codex (app-server) and a terminal tab.
 - **Milestone 3:** code signing and notarization, auto-update, and a per-thread view of token usage.

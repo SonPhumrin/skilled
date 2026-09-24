@@ -94,6 +94,7 @@ async function main(): Promise<void> {
   const browser = new BrowserController(
     (url) => broadcast({ type: "browser-open", url }),
     join(userData, "screenshots"),
+    (text) => broadcast({ type: "browser-picked", text }),
   );
   const tools = browserTools(browser);
   // Claude first (the default for new threads), then any installed ACP agents.
@@ -152,6 +153,7 @@ async function main(): Promise<void> {
   );
   ipcMain.handle("diff:get", (_e, projectId: string) => service.getDiff(projectId));
   ipcMain.handle("browser:attached", (_e, webContentsId: number) => browser.attach(webContentsId));
+  ipcMain.handle("browser:pick", () => browser.startPick());
 
   const open = () => {
     const win = createWindow();
@@ -161,7 +163,7 @@ async function main(): Promise<void> {
   };
   const first = open();
 
-  const smokeBrowser = () => smokeBrowserWith(tools);
+  const smokeBrowser = () => smokeBrowserWith(tools, browser);
   if (smoke) {
     // Renderer errors show up in the CI log.
     first.webContents.on("console-message", (details) => {
@@ -220,7 +222,7 @@ async function main(): Promise<void> {
  * snapshot it, type, click, and read the console. Proves the <webview>, the
  * DevTools bridge, and the snapshot script on every OS CI runs.
  */
-async function smokeBrowserWith(tools: ReturnType<typeof browserTools>): Promise<boolean> {
+async function smokeBrowserWith(tools: ReturnType<typeof browserTools>, browser: BrowserController): Promise<boolean> {
   const byName = (n: string) => tools.find((t) => t.name === n)!;
   const page =
     "data:text/html," +
@@ -238,8 +240,16 @@ async function smokeBrowserWith(tools: ReturnType<typeof browserTools>): Promise
     await byName("browser_click").run({ ref: button });
     const after = await byName("browser_snapshot").run({});
     const logs = await byName("browser_logs").run({});
-    const ok = after.text.includes("Hello ada@example.com") && logs.text.includes("smoke-console-check");
-    console.log(`smoke: browser ${ok ? "ok" : `failed\n${after.text}\n${logs.text}`}`);
+    // The element picker: start it, click the heading, get a description back.
+    // browser_click re-resolves the ref, so take a fresh snapshot first.
+    await browser.snapshot();
+    const picked = browser.nextPick();
+    await browser.startPick();
+    await byName("browser_click").run({ ref: button });
+    const pick = await Promise.race([picked, new Promise<null>((r) => setTimeout(() => r(null), 10_000))]);
+    const pickOk = Boolean(pick?.includes("<button") && pick.includes("Element `"));
+    const ok = after.text.includes("Hello ada@example.com") && logs.text.includes("smoke-console-check") && pickOk;
+    console.log(`smoke: browser ${ok ? "ok" : `failed\n${after.text}\n${logs.text}\npick: ${pick}`}`);
     return ok;
   } catch (err) {
     console.error("smoke: browser failed", err);

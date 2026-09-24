@@ -54,3 +54,17 @@ describe("formatSnapshot", () => {
     expect(formatSnapshot({ url: "x", title: "t", nodes: [{ kind: "text", name: "a" }], truncated: true })).toContain("snapshot truncated");
   });
 });
+
+describe("describePick", () => {
+  it("gives the agent the selector, text, HTML, and screenshot path", async () => {
+    const { describePick } = await import("../src/main/browser/picker");
+    const text = describePick(
+      { selector: "#login > button", tag: "button", text: "Sign in", html: '<button class="primary">Sign in</button>', rect: { x: 0, y: 0, width: 80, height: 30 } },
+      "http://localhost:3000/login",
+      "/tmp/el.png",
+    );
+    expect(text).toBe(
+      ["Element `#login > button` on http://localhost:3000/login", 'Text: "Sign in"', "```html", '<button class="primary">Sign in</button>', "```", "Screenshot: /tmp/el.png"].join("\n"),
+    );
+  });
+});

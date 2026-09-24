@@ -114,7 +114,9 @@ export type LiveUpdate =
   | { type: "permission"; request: PermissionRequest }
   | { type: "thread"; thread: Thread }
   /** The agent needs the browser pane: show it, optionally at a URL. */
-  | { type: "browser-open"; url?: string };
+  | { type: "browser-open"; url?: string }
+  /** The user picked an element in the browser pane (null: cancelled). */
+  | { type: "browser-picked"; text: string | null };
 
 /** The API the preload script exposes as `window.unskilled`. */
 export interface UnskilledApi {
@@ -134,5 +136,7 @@ export interface UnskilledApi {
   getDiff(projectId: string): Promise<DiffFile[]>;
   /** The browser pane's <webview> is ready; main takes control of it. */
   browserAttached(webContentsId: number): Promise<void>;
+  /** Start picking an element in the browser pane. */
+  browserPick(): Promise<void>;
   onUpdate(listener: (update: LiveUpdate) => void): () => void;
 }

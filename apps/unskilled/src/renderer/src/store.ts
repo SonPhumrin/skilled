@@ -29,6 +29,11 @@ interface State {
   browserMounted: boolean;
   /** A URL for the browser pane to load. */
   browserUrl: string | null;
+  /** The user is picking an element in the browser pane. */
+  picking: boolean;
+  /** Text to add to the message box (a picked element), with a nonce so repeats still apply. */
+  composerInsert: { text: string; nonce: number } | null;
+  startPick(): Promise<void>;
   /** A skill to pre-fill in the composer, set by the empty-state shortcuts. */
   pendingSkill: string | null;
   diffVersion: number; // bumps when a turn ends, so the diff refreshes
@@ -71,6 +76,17 @@ export const useStore = create<State>((set, get) => ({
   inspectorTab: "changes",
   browserMounted: false,
   browserUrl: null,
+  picking: false,
+  composerInsert: null,
+
+  async startPick() {
+    set({ picking: true });
+    try {
+      await api().browserPick();
+    } catch {
+      set({ picking: false });
+    }
+  },
   pendingSkill: null,
   diffVersion: 0,
 
@@ -212,6 +228,12 @@ export const useStore = create<State>((set, get) => ({
         return;
       case "browser-open":
         set({ inspectorOpen: true, inspectorTab: "browser", browserMounted: true, browserUrl: update.url ?? null });
+        return;
+      case "browser-picked":
+        set((s) => ({
+          picking: false,
+          composerInsert: update.text ? { text: update.text, nonce: (s.composerInsert?.nonce ?? 0) + 1 } : s.composerInsert,
+        }));
         return;
       case "thread":
         set((s) => ({

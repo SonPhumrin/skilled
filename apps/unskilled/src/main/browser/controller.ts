@@ -2,6 +2,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { WebContents } from "electron";
 import { webContents as allWebContents } from "electron";
+import { PICK_BINDING, type PickedElement, describePick, startPicker } from "./picker";
 import { collectPage, formatSnapshot, type PageSnapshot } from "./snapshot";
 import { isAllowedUrl, normalizeUrl } from "./url";
 
@@ -30,6 +31,8 @@ export class BrowserController {
   constructor(
     private requestOpen: (url?: string) => void,
     private screenshotDir: string,
+    /** A picked element, described for the message box (null when picking was cancelled). */
+    private onPicked: (text: string | null) => void = () => {},
   ) {}
 
   attach(webContentsId: number): void {
@@ -50,6 +53,7 @@ export class BrowserController {
     void wc.debugger.sendCommand("Log.enable").catch(() => {});
     // Typing needs a focused page; the pane may be behind another window, or hidden.
     void wc.debugger.sendCommand("Emulation.setFocusEmulationEnabled", { enabled: true }).catch(() => {});
+    void wc.debugger.sendCommand("Runtime.addBinding", { name: PICK_BINDING }).catch(() => {});
     wc.setWindowOpenHandler(({ url }) => {
       // Popups open in the pane itself, so the agent never loses the page.
       if (isAllowedUrl(url)) void wc.loadURL(url);
@@ -73,6 +77,10 @@ export class BrowserController {
   }
 
   private onCdp(method: string, params: Record<string, unknown>): void {
+    if (method === "Runtime.bindingCalled" && params.name === PICK_BINDING) {
+      void this.finishPick(String(params.payload));
+      return;
+    }
     const push = (entry: LogEntry) => {
       this.logs.push(entry);
       if (this.logs.length > MAX_LOGS) this.logs.shift();
@@ -246,6 +254,52 @@ export class BrowserController {
     const lines = this.logs.map((l) => `[${l.level}] ${l.text}`);
     if (clear) this.logs = [];
     return lines.length ? lines.join("\n") : "No console errors, warnings, or failed requests since the last page load.";
+  }
+
+  /** Let the user click an element in the pane; the result arrives through onPicked. */
+  async startPick(): Promise<void> {
+    const wc = await this.page();
+    await this.evaluate(wc, `(${startPicker.toString()})(${JSON.stringify(PICK_BINDING)})`);
+    wc.focus();
+  }
+
+  private pickWaiters: ((text: string | null) => void)[] = [];
+
+  /** Resolves with the next pick's description (for the smoke test). */
+  nextPick(): Promise<string | null> {
+    return new Promise((resolve) => this.pickWaiters.push(resolve));
+  }
+
+  private emitPick(text: string | null): void {
+    this.onPicked(text);
+    for (const w of this.pickWaiters.splice(0)) w(text);
+  }
+
+  private async finishPick(payload: string): Promise<void> {
+    const picked = JSON.parse(payload) as PickedElement | null;
+    const wc = this.wc;
+    if (!picked || !wc) {
+      this.emitPick(null);
+      return;
+    }
+    let path: string | undefined;
+    try {
+      const r = picked.rect;
+      if (r.width >= 1 && r.height >= 1) {
+        const image = await wc.capturePage({
+          x: Math.max(0, Math.floor(r.x)),
+          y: Math.max(0, Math.floor(r.y)),
+          width: Math.ceil(r.width),
+          height: Math.ceil(r.height),
+        });
+        mkdirSync(this.screenshotDir, { recursive: true });
+        path = join(this.screenshotDir, `element-${new Date().toISOString().replace(/[:.]/g, "-")}.png`);
+        writeFileSync(path, image.toPNG());
+      }
+    } catch {
+      // A screenshot is a bonus; the description still goes through.
+    }
+    this.emitPick(describePick(picked, wc.getURL(), path));
   }
 
   async screenshot(): Promise<{ path: string; png: Buffer }> {

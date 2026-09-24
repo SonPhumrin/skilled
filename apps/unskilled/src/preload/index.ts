@@ -17,6 +17,7 @@ const api: UnskilledApi = {
   respondPermission: (requestId, decision) => ipcRenderer.invoke("permission:respond", requestId, decision),
   getDiff: (projectId) => ipcRenderer.invoke("diff:get", projectId),
   browserAttached: (webContentsId) => ipcRenderer.invoke("browser:attached", webContentsId),
+  browserPick: () => ipcRenderer.invoke("browser:pick"),
   onUpdate: (listener) => {
     const handler = (_e: Electron.IpcRendererEvent, update: LiveUpdate) => listener(update);
     ipcRenderer.on("unskilled:update", handler);

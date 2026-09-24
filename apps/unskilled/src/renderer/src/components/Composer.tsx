@@ -11,6 +11,7 @@ import { useStore } from "../store";
 export function Composer({ threadId }: { threadId: string }) {
   const skills = useStore((s) => s.skills);
   const running = useStore((s) => Boolean(s.running[threadId]));
+  const insert = useStore((s) => s.composerInsert);
   const { send, interrupt } = useStore.getState();
   const [text, setText] = useState("");
   const [skill, setSkill] = useState<SkillEntry | null>(null);
@@ -40,6 +41,14 @@ export function Composer({ threadId }: { threadId: string }) {
     const pending = useStore.getState().takePendingSkill();
     setSkill(pending ? (useStore.getState().skills.find((s) => s.name === pending) ?? null) : null);
   }, [threadId]);
+
+  // A picked element lands at the end of whatever is being written.
+  useEffect(() => {
+    if (!insert) return;
+    setText((t) => (t.trim() ? `${t.trimEnd()}\n\n${insert.text}\n` : `${insert.text}\n`));
+    useStore.setState({ composerInsert: null }); // consumed: don't re-apply on the next mount
+    area.current?.focus();
+  }, [insert]);
 
   // Grow with the content, up to the CSS max-height.
   useEffect(() => {

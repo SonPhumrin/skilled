@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "../api";
-import { IconArrowLeft, IconArrowRight, IconGlobe, IconRefresh } from "../icons";
+import { IconArrowLeft, IconArrowRight, IconGlobe, IconRefresh, IconTarget } from "../icons";
 import { useStore } from "../store";
 
 /** The <webview> element's API, as far as this panel uses it. */
@@ -32,6 +32,8 @@ function normalize(input: string): string {
  */
 export function BrowserPanel() {
   const pendingUrl = useStore((s) => s.browserUrl);
+  const picking = useStore((s) => s.picking);
+  const startPick = useStore((s) => s.startPick);
   const view = useRef<WebviewElement | null>(null);
   // <webview> methods throw until its first dom-ready.
   const ready = useRef(false);
@@ -103,6 +105,14 @@ export function BrowserPanel() {
             onFocus={(e) => e.currentTarget.select()}
           />
         </label>
+        <button
+          type="button"
+          className={`icon-button${picking ? " active" : ""}`}
+          title="Pick an element to add to your message (Esc cancels)"
+          onClick={() => void startPick()}
+        >
+          <IconTarget />
+        </button>
       </form>
       <webview ref={view as unknown as React.Ref<HTMLWebViewElement>} className="browser-view" src={initial} partition="persist:unskilled-browser" />
     </div>
