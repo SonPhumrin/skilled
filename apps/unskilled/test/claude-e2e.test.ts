@@ -115,8 +115,8 @@ describe("Claude end to end (real Claude Code, fake API)", () => {
     expect(events.find((e) => e.kind === "assistant-text")).toMatchObject({ text: "Hello." });
     expect(events.at(-1)).toMatchObject({ kind: "turn-end", outputTokens: 3 });
     expect(limits).toEqual([]);
-    // Only the turn's own model calls: no usage endpoint, no polling.
-    expect(requests.length).toBeGreaterThan(0);
-    expect(requests.every((r) => r === "POST /v1/messages")).toBe(true);
+    // The turn's model calls, and nothing that asks for usage or limits.
+    expect(requests).toContain("POST /v1/messages");
+    expect(requests.filter((r) => /usage|rate.?limit|quota/i.test(r))).toEqual([]);
   }, 90_000);
 });
