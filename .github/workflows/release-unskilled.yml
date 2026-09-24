@@ -1,13 +1,20 @@
 name: release-unskilled
 
-# Builds UnSkilled installers for every OS. Push a tag unskilled-v<version>
-# (matching apps/unskilled/package.json) to also publish a GitHub release,
-# which installed copies pick up as an update. A manual run only builds.
-# Signing and notarization run when their secrets exist; see the app README.
+# Builds UnSkilled installers for every OS and publishes a GitHub release,
+# which installed copies pick up as an update. Two ways to release version
+# X (apps/unskilled/package.json): push a tag unskilled-vX, or run this
+# workflow on main with "publish" ticked, which creates that tag. A manual
+# run without "publish" only builds. Signing and notarization run when their
+# secrets exist; see the app README.
 on:
   push:
     tags: ["unskilled-v*"]
   workflow_dispatch:
+    inputs:
+      publish:
+        description: "Publish a release, tagging this commit unskilled-v<package.json version>"
+        type: boolean
+        default: false
 
 jobs:
   build:
@@ -70,12 +77,16 @@ jobs:
           if-no-files-found: error
 
   release:
-    if: startsWith(github.ref, 'refs/tags/')
+    if: startsWith(github.ref, 'refs/tags/') || (inputs.publish && github.ref == 'refs/heads/main')
     needs: build
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: apps/unskilled/package.json
+          sparse-checkout-cone-mode: false
       - uses: actions/download-artifact@v4
         with:
           path: dist
@@ -85,6 +96,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           ls -la dist
-          version="${GITHUB_REF_NAME#unskilled-v}"
+          version=$(node -p "require('./apps/unskilled/package.json').version")
+          tag="unskilled-v${version}"
+          # A manual run creates the tag on this commit; it refuses a version that's already out.
+          if [ "$GITHUB_REF_TYPE" != tag ] && gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "$tag is already released; bump the version in apps/unskilled/package.json first."; exit 1
+          fi
           # --latest: the app's updater follows this repo's latest release.
-          gh release create "$GITHUB_REF_NAME" dist/* --repo "$GITHUB_REPOSITORY" --title "UnSkilled $version" --generate-notes --latest
+          gh release create "$tag" dist/* --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "UnSkilled $version" --generate-notes --latest

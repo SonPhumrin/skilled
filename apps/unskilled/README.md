@@ -82,7 +82,12 @@ To look at the UI without Electron or an agent: `pnpm --filter unskilled preview
 
 `pnpm --filter unskilled dist` builds for the OS you're on: a `.dmg`/`.zip` on macOS, an NSIS `.exe` on Windows, an `.AppImage` on Linux. The icon is `build/icon.png`, rendered from `build/icon.svg`.
 
-To release, bump `version` in `apps/unskilled/package.json` and push a tag `unskilled-v<version>`. The `release-unskilled` workflow builds all three, then publishes a GitHub release with the installers and the `latest*.yml` files the updater reads. Running the workflow by hand only builds.
+To release, bump `version` in `apps/unskilled/package.json` on main, then either:
+
+- push a tag `unskilled-v<version>`, or
+- on GitHub, open Actions → release-unskilled → Run workflow, pick `main`, and tick **publish**. That tags the commit for you, and works from a phone.
+
+The `release-unskilled` workflow builds all three, then publishes a GitHub release with the installers and the `latest*.yml` files the updater reads. It refuses a version that's already released. A manual run without **publish** only builds.
 
 ### Updates
 

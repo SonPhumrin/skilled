@@ -1,7 +1,7 @@
 {
   "name": "unskilled",
   "productName": "UnSkilled",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "A minimal desktop coding-agent harness with the skilled workflow built in.",
   "license": "MIT",
