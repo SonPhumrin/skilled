@@ -11,6 +11,7 @@ export function installMock(): void {
   const now = Date.now();
   const listeners = new Set<(u: LiveUpdate) => void>();
   const emit = (u: LiveUpdate) => listeners.forEach((l) => l(u));
+  const openTerminals = new Set<string>();
 
   const projects: Project[] =
     scene === "welcome"
@@ -153,6 +154,15 @@ export function installMock(): void {
     respondPermission: async () => {},
     browserAttached: async () => {},
     browserPick: async () => {},
+    terminalOpen: async (id) => {
+      // Like the real main process, a second open of the same terminal reattaches.
+      if (openTerminals.has(id)) return;
+      openTerminals.add(id);
+      setTimeout(() => emit({ type: "terminal-data", id, data: "\x1b[32m~/code/acme-web\x1b[0m on \x1b[35mmain\x1b[0m\r\n❯ npm test\r\n\r\n PASS  src/middleware/rateLimit.test.ts\r\n  ✓ allows 5 attempts (4 ms)\r\n  ✓ returns 429 on the 6th (2 ms)\r\n  ✓ resets after the window (1 ms)\r\n\r\nTests: 3 passed, 3 total\r\n\x1b[32m~/code/acme-web\x1b[0m on \x1b[35mmain\x1b[0m\r\n❯ " }), 50);
+    },
+    terminalWrite: () => {},
+    terminalResize: () => {},
+    terminalClose: async () => {},
     getDiff: async () => [
       {
         path: "src/middleware/rateLimit.ts",

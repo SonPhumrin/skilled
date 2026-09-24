@@ -12,6 +12,7 @@ import { BrowserController, isAllowedUrl } from "./browser/controller";
 import { browserTools } from "./browser/tools";
 import { Store } from "./db";
 import { startToolServer, type ToolServer } from "./mcp-http";
+import { TerminalManager } from "./terminal";
 import { Service } from "./service";
 import { defaultSkillsCandidates, findSkillsRoot, loadCatalog } from "./skills/catalog";
 import { ensureModelSkillsDir, ensurePlugin } from "./skills/plugin";
@@ -159,6 +160,14 @@ async function main(): Promise<void> {
   ipcMain.handle("diff:get", (_e, projectId: string) => service.getDiff(projectId));
   ipcMain.handle("browser:attached", (_e, webContentsId: number) => browser.attach(webContentsId));
   ipcMain.handle("browser:pick", () => browser.startPick());
+  const terminals = new TerminalManager({
+    data: (id, data) => broadcast({ type: "terminal-data", id, data }),
+    exit: (id, code) => broadcast({ type: "terminal-exit", id, code }),
+  });
+  ipcMain.handle("terminal:open", (_e, id: string, cwd: string | null, cols: number, rows: number) => terminals.open(id, cwd, cols, rows));
+  ipcMain.on("terminal:write", (_e, id: string, data: string) => terminals.write(id, data));
+  ipcMain.on("terminal:resize", (_e, id: string, cols: number, rows: number) => terminals.resize(id, cols, rows));
+  ipcMain.handle("terminal:close", (_e, id: string) => terminals.close(id));
 
   const open = () => {
     const win = createWindow();
@@ -169,6 +178,39 @@ async function main(): Promise<void> {
   const first = open();
 
   const smokeBrowser = () => smokeBrowserWith(tools, browser);
+  // A real shell through node-pty: proves the native module loads (packaged too) on every OS.
+  const smokeTerminal = () =>
+    new Promise<boolean>((resolve) => {
+      let out = "";
+      let settled = false;
+      const probe = new TerminalManager({
+        data: (_id, d) => {
+          out += d;
+          if (!settled && out.includes("unskilled-term-ok")) {
+            settled = true;
+            clearTimeout(timer);
+            probe.dispose();
+            console.log("smoke: terminal ok");
+            resolve(true);
+          }
+        },
+        exit: () => {},
+      });
+      const timer = setTimeout(() => {
+        probe.dispose();
+        console.log(`smoke: terminal failed\n${out.slice(-500)}`);
+        resolve(false);
+      }, 20_000);
+      probe
+        .open("smoke", null, 80, 24)
+        // On POSIX the typed line itself doesn't contain the marker; only the command's output does.
+        .then(() => setTimeout(() => probe.write("smoke", process.platform === "win32" ? "echo unskilled-term-ok\r" : "echo unskilled-term-$(echo ok)\r"), 500))
+        .catch((err: unknown) => {
+          clearTimeout(timer);
+          console.error("smoke: terminal failed", err);
+          resolve(false);
+        });
+    });
   if (smoke) {
     // Renderer errors show up in the CI log.
     first.webContents.on("console-message", (details) => {
@@ -192,6 +234,7 @@ async function main(): Promise<void> {
           console.log(`smoke: claude binary ${bin ?? "(not found)"} -> ${run?.stdout.trim() || run?.error?.message || "no output"}`);
         }
         const browserOk = await smokeBrowser();
+        const terminalOk = await smokeTerminal();
         const shot = process.env.UNSKILLED_SMOKE_SCREENSHOT;
         if (shot) {
           first.showInactive();
@@ -199,8 +242,9 @@ async function main(): Promise<void> {
           writeFileSync(shot, (await first.webContents.capturePage()).toPNG());
           console.log(`smoke: screenshot ${shot}`);
         }
-        console.log(`smoke: ${ok && binaryOk && browserOk ? "ok" : "failed"}`);
-        app.exit(ok && binaryOk && browserOk ? 0 : 1);
+        const all = ok && binaryOk && browserOk && terminalOk;
+        console.log(`smoke: ${all ? "ok" : "failed"}`);
+        app.exit(all ? 0 : 1);
       } catch (err) {
         console.error("smoke: failed", err);
         app.exit(1);
@@ -217,6 +261,7 @@ async function main(): Promise<void> {
   });
   app.on("before-quit", () => {
     service.dispose();
+    terminals.dispose();
     void toolServer?.then((s) => s.close());
     store.close();
   });

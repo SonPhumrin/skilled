@@ -4,7 +4,7 @@ import { Composer } from "./components/Composer";
 import { Inspector } from "./components/Inspector";
 import { Sidebar } from "./components/Sidebar";
 import { ThreadView } from "./components/ThreadView";
-import { IconDiff, IconFolder, IconGlobe, IconSparkle } from "./icons";
+import { IconDiff, IconFolder, IconGlobe, IconSparkle, IconTerminal } from "./icons";
 import { useSelectedThread, useStore } from "./store";
 
 const MODES: { id: PermissionMode; label: string; title: string }[] = [
@@ -38,6 +38,9 @@ export function App() {
       } else if (mod && e.shiftKey && e.key.toLowerCase() === "d") {
         e.preventDefault();
         showInspector("changes");
+      } else if (e.ctrlKey && e.key === "`") {
+        e.preventDefault();
+        showInspector("terminal");
       } else if (mod && e.shiftKey && e.key.toLowerCase() === "b") {
         e.preventDefault();
         showInspector("browser");
@@ -50,7 +53,7 @@ export function App() {
   }, [newThread, showInspector, interrupt, running]);
 
   // The browser works without a project; Changes needs one.
-  const inspectorVisible = inspectorOpen && (project || inspectorTab === "browser");
+  const inspectorVisible = inspectorOpen && (project || inspectorTab !== "changes");
 
   return (
     <div className={`app${inspectorVisible ? " with-inspector" : ""}`}>
@@ -123,6 +126,13 @@ export function App() {
                 onClick={() => showInspector("browser")}
               >
                 <IconGlobe />
+              </button>
+              <button
+                className={`icon-button${inspectorOpen && inspectorTab === "terminal" ? " active" : ""}`}
+                title="Terminal (⌃`)"
+                onClick={() => showInspector("terminal")}
+              >
+                <IconTerminal />
               </button>
             </>
           )}

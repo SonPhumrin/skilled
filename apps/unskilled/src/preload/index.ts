@@ -18,6 +18,10 @@ const api: UnskilledApi = {
   getDiff: (projectId) => ipcRenderer.invoke("diff:get", projectId),
   browserAttached: (webContentsId) => ipcRenderer.invoke("browser:attached", webContentsId),
   browserPick: () => ipcRenderer.invoke("browser:pick"),
+  terminalOpen: (id, cwd, cols, rows) => ipcRenderer.invoke("terminal:open", id, cwd, cols, rows),
+  terminalWrite: (id, data) => ipcRenderer.send("terminal:write", id, data),
+  terminalResize: (id, cols, rows) => ipcRenderer.send("terminal:resize", id, cols, rows),
+  terminalClose: (id) => ipcRenderer.invoke("terminal:close", id),
   onUpdate: (listener) => {
     const handler = (_e: Electron.IpcRendererEvent, update: LiveUpdate) => listener(update);
     ipcRenderer.on("unskilled:update", handler);

@@ -599,3 +599,10 @@ button { cursor: default; }
 }
 .browser-view { flex: 1; min-height: 0; width: 100%; background: #fff; display: flex; }
 .inspector-head .segmented { -webkit-app-region: no-drag; }
+
+/* ---------- terminal ---------- */
+
+.terminal-body { overflow: hidden; padding: 10px 0 0 12px; }
+.terminal-host { height: 100%; width: 100%; }
+.terminal-host .xterm { height: 100%; }
+.terminal-host .xterm-viewport { background: transparent !important; }

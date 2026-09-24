@@ -116,7 +116,9 @@ export type LiveUpdate =
   /** The agent needs the browser pane: show it, optionally at a URL. */
   | { type: "browser-open"; url?: string }
   /** The user picked an element in the browser pane (null: cancelled). */
-  | { type: "browser-picked"; text: string | null };
+  | { type: "browser-picked"; text: string | null }
+  | { type: "terminal-data"; id: string; data: string }
+  | { type: "terminal-exit"; id: string; code: number };
 
 /** The API the preload script exposes as `window.unskilled`. */
 export interface UnskilledApi {
@@ -138,5 +140,10 @@ export interface UnskilledApi {
   browserAttached(webContentsId: number): Promise<void>;
   /** Start picking an element in the browser pane. */
   browserPick(): Promise<void>;
+  /** Open (or reattach to) the terminal with this id, in `cwd` (home when null). */
+  terminalOpen(id: string, cwd: string | null, cols: number, rows: number): Promise<void>;
+  terminalWrite(id: string, data: string): void;
+  terminalResize(id: string, cols: number, rows: number): void;
+  terminalClose(id: string): Promise<void>;
   onUpdate(listener: (update: LiveUpdate) => void): () => void;
 }

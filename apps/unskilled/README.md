@@ -12,6 +12,10 @@ The app follows the contract in [HARNESS.md](../../HARNESS.md):
 - **User-invoked skills (23)** never go to the agent. The `/` menu lists them from `skills.json`. When you pick one, the app puts the skill's body into your message, the same thing Claude Code does for a typed `/command`.
 - **git-guardrails** runs as a pre-tool hook on every shell command the agent issues. It needs Python 3; without it the guard is off.
 
+## Terminal
+
+The Terminal tab (⌃\`) is a real shell in the project folder: `$SHELL` on macOS and Linux, and PowerShell 7, Windows PowerShell, or cmd on Windows. It runs through node-pty and xterm.js, with one shell per project that keeps running while you switch tabs. If the shell exits, press any key to start a new one.
+
 ## Agents
 
 Every thread runs one agent, picked in the header. Switching agents starts a fresh conversation, because sessions don't carry across agents.
@@ -60,7 +64,7 @@ To look at the UI without Electron or an agent: `pnpm --filter unskilled preview
 
 `pnpm --filter unskilled dist` builds for the OS you're on: a `.dmg`/`.zip` on macOS, an NSIS `.exe` on Windows, an `.AppImage` on Linux. To build all three, push a tag `unskilled-v<version>`; the `release-unskilled` workflow builds them and uploads them as artifacts. Builds are unsigned until signing secrets are added.
 
-CI runs typecheck, tests, packaging, and a smoke test of the packaged app on all three OSes. The smoke test (`--smoke`) checks five things: the window loads, the preload bridge works, the skills catalog answers, the bundled Claude Code binary runs, and the browser tools can open a page, type, click, and read the console. Set `UNSKILLED_SMOKE_SCREENSHOT=<file.png>` to also save a screenshot of the window.
+CI runs typecheck, tests, packaging, and a smoke test of the packaged app on all three OSes. The smoke test (`--smoke`) checks five things: the window loads, the preload bridge works, the skills catalog answers, the bundled Claude Code binary runs, the browser tools can open a page, type, click, pick an element, and read the console, and a real shell answers through node-pty. Set `UNSKILLED_SMOKE_SCREENSHOT=<file.png>` to also save a screenshot of the window.
 
 ## Layout
 
@@ -73,6 +77,7 @@ CI runs typecheck, tests, packaging, and a smoke test of the packaged app on all
 | `src/main/db.ts` | SQLite store (`node:sqlite`): projects, threads, events |
 | `src/main/git.ts` | Working-tree diff for the Changes panel |
 | `src/main/mcp-http.ts` | The harness's tools as a local MCP server, for ACP agents |
+| `src/main/terminal.ts` | The Terminal tab's shells (node-pty) |
 | `src/main/browser/` | The browser pane's controller (DevTools Protocol), page snapshots, and the agent's `browser_*` tools |
 | `src/main/guard.ts` | git-guardrails pre-tool hook |
 | `src/preload/` | The `window.unskilled` bridge |
@@ -81,9 +86,9 @@ CI runs typecheck, tests, packaging, and a smoke test of the packaged app on all
 
 ## Stack
 
-Electron 44 (the same Chromium on every OS, which the built-in browser needs), React 19, Vite via electron-vite, Zustand, `node:sqlite`, and the Claude Agent SDK. The UI uses no component library: system fonts, macOS vibrancy and Windows Mica, light and dark themes from CSS tokens.
+Electron 44 (the same Chromium on every OS, which the built-in browser needs), React 19, Vite via electron-vite, Zustand, `node:sqlite`, the Claude Agent SDK, and xterm.js with node-pty, the app's one native module. node-pty uses Node-API, so the same build works in Node and Electron. The UI uses no component library: system fonts, macOS vibrancy and Windows Mica, light and dark themes from CSS tokens.
 
 ## Roadmap
 
-- **Milestone 2:** ~~the built-in browser pane~~, ~~the generic ACP driver~~, and ~~browser tools for ACP agents~~, ~~the element picker~~, and ~~Codex~~ (done). Still to come: a terminal tab, and browser tools for Codex.
+- **Milestone 2:** ~~the built-in browser pane~~, ~~the generic ACP driver~~, and ~~browser tools for ACP agents~~, ~~the element picker~~, ~~Codex~~, and ~~the terminal tab~~ (done). Still to come: browser tools for Codex.
 - **Milestone 3:** code signing and notarization, auto-update, and a per-thread view of token usage.

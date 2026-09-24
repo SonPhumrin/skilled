@@ -47,3 +47,6 @@ export const IconGlobe = ({ size = 16 }: P) =>
 
 export const IconTarget = ({ size = 16 }: P) =>
   svg(size, <><circle cx="8" cy="8" r="4.5" /><path d="M8 1.5v2.5M8 12v2.5M1.5 8H4M12 8h2.5" /></>);
+
+export const IconTerminal = ({ size = 16 }: P) =>
+  svg(size, <><rect x="2" y="3" width="12" height="10" rx="2" /><path d="m5 6.5 2 1.5-2 1.5M8.5 10h2.5" /></>);

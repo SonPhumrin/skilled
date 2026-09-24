@@ -10,6 +10,10 @@
     "test": "pnpm --filter unskilled test"
   },
   "pnpm": {
-    "onlyBuiltDependencies": ["electron", "esbuild"]
+    "onlyBuiltDependencies": [
+      "electron",
+      "esbuild",
+      "node-pty"
+    ]
   }
 }

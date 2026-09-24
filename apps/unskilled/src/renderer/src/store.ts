@@ -24,7 +24,7 @@ interface State {
   running: Record<string, boolean>;
   permissions: PermissionRequest[];
   inspectorOpen: boolean;
-  inspectorTab: "changes" | "browser";
+  inspectorTab: "changes" | "browser" | "terminal";
   /** The browser pane has been shown this session, so its <webview> stays mounted. */
   browserMounted: boolean;
   /** A URL for the browser pane to load. */
@@ -49,7 +49,9 @@ interface State {
   interrupt(): Promise<void>;
   respond(requestId: string, decision: "allow-once" | "allow-always" | "deny"): Promise<void>;
   toggleInspector(): void;
-  showInspector(tab: "changes" | "browser"): void;
+  showInspector(tab: "changes" | "browser" | "terminal"): void;
+  /** Terminals opened this session (by project id, or "home"), kept mounted so their shells survive tab switches. */
+  terminals: string[];
   apply(update: LiveUpdate): void;
 }
 
@@ -75,6 +77,7 @@ export const useStore = create<State>((set, get) => ({
   inspectorOpen: false,
   inspectorTab: "changes",
   browserMounted: false,
+  terminals: [],
   browserUrl: null,
   picking: false,
   composerInsert: null,
@@ -190,7 +193,13 @@ export const useStore = create<State>((set, get) => ({
     set((s) => {
       // Clicking the open tab's button again closes the inspector.
       if (s.inspectorOpen && s.inspectorTab === tab) return { inspectorOpen: false };
-      return { inspectorOpen: true, inspectorTab: tab, browserMounted: s.browserMounted || tab === "browser" };
+      const term = s.selectedProjectId ?? "home";
+      return {
+        inspectorOpen: true,
+        inspectorTab: tab,
+        browserMounted: s.browserMounted || tab === "browser",
+        terminals: tab === "terminal" && !s.terminals.includes(term) ? [...s.terminals, term] : s.terminals,
+      };
     });
   },
 
