@@ -348,18 +348,28 @@ async function main(): Promise<void> {
     new Promise<boolean>((resolve) => {
       let out = "";
       let settled = false;
+      let exited: () => void = () => {};
       const probe = new TerminalManager({
         data: (_id, d) => {
           out += d;
           if (!settled && out.includes("unskilled-term-ok")) {
             settled = true;
             clearTimeout(timer);
-            probe.dispose();
             console.log("smoke: terminal ok");
-            resolve(true);
+            // Let the shell exit by itself: killing a Windows pty forks node-pty's
+            // console-list helper, which crashes if the app exits under it.
+            const fallback = setTimeout(() => {
+              probe.dispose();
+              resolve(true);
+            }, 5_000);
+            exited = () => {
+              clearTimeout(fallback);
+              resolve(true);
+            };
+            probe.write("smoke", "exit\r");
           }
         },
-        exit: () => {},
+        exit: () => exited(),
       });
       const timer = setTimeout(() => {
         probe.dispose();
