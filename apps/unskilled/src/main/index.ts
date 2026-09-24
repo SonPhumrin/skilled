@@ -10,6 +10,7 @@ import { loadAcpAgents } from "./agents/registry";
 import { BrowserController, isAllowedUrl } from "./browser/controller";
 import { browserTools } from "./browser/tools";
 import { Store } from "./db";
+import { startToolServer, type ToolServer } from "./mcp-http";
 import { Service } from "./service";
 import { defaultSkillsCandidates, findSkillsRoot, loadCatalog } from "./skills/catalog";
 import { ensureModelSkillsDir, ensurePlugin } from "./skills/plugin";
@@ -99,13 +100,21 @@ async function main(): Promise<void> {
   const { agents: acpAgents, problems } = loadAcpAgents(join(userData, "agents.json"));
   for (const p of problems) console.warn(p);
   const modelSkillsDir = join(userData, "skilled-skills");
+  const enabledTools = () => (browser.enabled ? tools : []);
+  // Started on first use, for ACP agents that take tools over MCP.
+  let toolServer: Promise<ToolServer> | null = null;
+  const getToolServer = () => (toolServer ??= startToolServer(enabledTools));
   const drivers = [
     driver,
     ...acpAgents.map((config) =>
-      createAcpDriver(config, { skillsDir: () => ensureModelSkillsDir(catalog, modelSkillsDir), clientVersion: app.getVersion() }),
+      createAcpDriver(config, {
+        skillsDir: () => ensureModelSkillsDir(catalog, modelSkillsDir),
+        clientVersion: app.getVersion(),
+        toolServer: getToolServer,
+      }),
     ),
   ];
-  const service = new Service(store, catalog, drivers, broadcast, () => (browser.enabled ? tools : []));
+  const service = new Service(store, catalog, drivers, broadcast, enabledTools);
 
   ipcMain.handle("projects:list", () => store.listProjects());
   ipcMain.handle("projects:add", async (event) => {
@@ -201,6 +210,7 @@ async function main(): Promise<void> {
   });
   app.on("before-quit", () => {
     service.dispose();
+    void toolServer?.then((s) => s.close());
     store.close();
   });
 }

@@ -28,7 +28,7 @@ Every thread runs one agent, picked in the header. Switching agents starts a fre
 
   The permission modes carry over. Ask asks for every tool call. Auto-edit allows reads and file edits without asking. Full allows everything.
 
-The `/` menu works the same for every agent, since the app composes the skill's text itself. For now the browser tools reach Claude only.
+The `/` menu works the same for every agent, since the app composes the skill's text itself. The browser tools reach ACP agents too, if the agent accepts HTTP MCP servers (deepseek-harness does). The app serves them from a local MCP server on 127.0.0.1, which only accepts requests carrying a per-run token.
 
 ## The built-in browser
 
@@ -70,6 +70,7 @@ CI runs typecheck, tests, packaging, and a smoke test of the packaged app on all
 | `src/main/skills/` | Reading `skills.json`, generating the plugin, composing prompts |
 | `src/main/db.ts` | SQLite store (`node:sqlite`): projects, threads, events |
 | `src/main/git.ts` | Working-tree diff for the Changes panel |
+| `src/main/mcp-http.ts` | The harness's tools as a local MCP server, for ACP agents |
 | `src/main/browser/` | The browser pane's controller (DevTools Protocol), page snapshots, and the agent's `browser_*` tools |
 | `src/main/guard.ts` | git-guardrails pre-tool hook |
 | `src/preload/` | The `window.unskilled` bridge |
@@ -82,5 +83,5 @@ Electron 44 (the same Chromium on every OS, which the built-in browser needs), R
 
 ## Roadmap
 
-- **Milestone 2:** ~~the built-in browser pane~~ and ~~the generic ACP driver~~ (done). Still to come: Codex (app-server), browser tools for ACP agents (an HTTP MCP server), an element picker in the browser, and a terminal tab.
+- **Milestone 2:** ~~the built-in browser pane~~, ~~the generic ACP driver~~, and ~~browser tools for ACP agents~~ (done). Still to come: Codex (app-server), an element picker in the browser, and a terminal tab.
 - **Milestone 3:** code signing and notarization, auto-update, and a per-thread view of token usage.

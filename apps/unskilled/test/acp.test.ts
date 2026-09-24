@@ -102,6 +102,21 @@ describe("ACP driver", () => {
     expect(full.events.find((e) => e.kind === "tool-result")).toMatchObject({ isError: false });
   });
 
+  it("attaches the harness's tool server when tools exist, even mid-conversation", async () => {
+    const d = createAcpDriver(
+      { id: "mock", label: "Mock", command: process.execPath, args: [MOCK] },
+      { clientVersion: "test", toolServer: async () => ({ url: "http://127.0.0.1:9/mcp", token: "t" }) },
+    );
+    closeAfter(() => d.dispose?.());
+    const before = turn("mcp");
+    await d.runTurn(before.input);
+    expect(before.deltas.join("")).toBe("[]");
+    const tool = { name: "browser_snapshot", description: "", input: {}, autoAllow: true, run: async () => ({ text: "" }) };
+    const after = turn("mcp", { sessionId: before.sessions[0]!, tools: [tool] });
+    await d.runTurn(after.input);
+    expect(after.deltas.join("")).toBe('[["http","unskilled","http://127.0.0.1:9/mcp"]]');
+  });
+
   it("cancels a running turn", async () => {
     const d = driver();
     const t = turn("slow");

@@ -49,7 +49,11 @@ interface PermissionOption {
 }
 interface InitializeResult {
   protocolVersion: number;
-  agentCapabilities?: { loadSession?: boolean; sessionCapabilities?: { resume?: object | null } };
+  agentCapabilities?: {
+    loadSession?: boolean;
+    mcpCapabilities?: { http?: boolean };
+    sessionCapabilities?: { resume?: object | null; close?: object | null };
+  };
   authMethods?: { id: string; name: string }[];
 }
 
@@ -89,6 +93,8 @@ interface Live {
   init: InitializeResult;
   sessionId: string | null;
   configOptions: ConfigOption[];
+  /** Whether this session was opened with the harness's tool server attached. */
+  withTools: boolean;
   /** The turn currently receiving this connection's updates. */
   turn: TurnState | null;
   idleTimer?: NodeJS.Timeout;
@@ -111,7 +117,12 @@ const IDLE_MS = 10 * 60_000;
  */
 export function createAcpDriver(
   config: AcpAgentConfig,
-  deps: { skillsDir?: () => string; clientVersion: string },
+  deps: {
+    skillsDir?: () => string;
+    clientVersion: string;
+    /** The harness's tools over HTTP MCP, for agents that take MCP servers. */
+    toolServer?: () => Promise<{ url: string; token: string }>;
+  },
 ): AgentDriver {
   const live = new Map<string, Live>();
   let knownModels: ModelOption[] = [];
@@ -196,6 +207,9 @@ export function createAcpDriver(
         const choose = async (): Promise<PermissionDecision> => {
           if (!t) return "deny";
           if (pickPermission(t.input.permissionMode, p.toolCall.kind) === "allow") return "allow-once";
+          // The harness's own safe tools (browser snapshot, click, ...) run without asking.
+          const title = `${p.toolCall.title ?? ""}`;
+          if (t.input.tools.some((tool) => tool.autoAllow && title.includes(tool.name))) return "allow-once";
           return t.input.requestPermission({
             toolName: kindLabel(p.toolCall.kind),
             summary: p.toolCall.title ?? JSON.stringify(p.toolCall.rawInput ?? {}),
@@ -214,17 +228,34 @@ export function createAcpDriver(
       clientCapabilities: { fs: { readTextFile: false, writeTextFile: false }, terminal: false },
       clientInfo: { name: "unskilled", version: deps.clientVersion },
     });
-    l = { conn, init, sessionId: null, configOptions: [], turn: null };
+    l = { conn, init, sessionId: null, configOptions: [], withTools: false, turn: null };
     const auth = init.authMethods?.[0];
     if (auth) await conn.request("authenticate", { methodId: auth.id }).catch(() => {});
     live.set(threadKey, l);
     return l;
   };
 
+  const mcpServersFor = async (l: Live, input: TurnInput) => {
+    if (!input.tools.length || !deps.toolServer || !l.init.agentCapabilities?.mcpCapabilities?.http) return [];
+    const { url, token } = await deps.toolServer();
+    return [{ type: "http", name: "unskilled", url, headers: [{ name: "Authorization", value: `Bearer ${token}` }] }];
+  };
+
   const openSession = async (l: Live, input: TurnInput) => {
-    if (l.sessionId) return;
     const caps = l.init.agentCapabilities;
-    const params = { cwd: input.cwd, mcpServers: [] as unknown[] };
+    const mcpServers = await mcpServersFor(l, input);
+    if (l.sessionId) {
+      // Tools became available mid-conversation (the user opened the
+      // browser): reopen the same session with the tool server attached.
+      if (!mcpServers.length || l.withTools || !caps?.sessionCapabilities?.resume || !caps.sessionCapabilities.close) return;
+      await l.conn.request("session/close", { sessionId: l.sessionId }).catch(() => {});
+      const res = await l.conn.request<{ configOptions?: ConfigOption[] }>("session/resume", { cwd: input.cwd, mcpServers, sessionId: l.sessionId });
+      if (res?.configOptions) l.configOptions = res.configOptions;
+      l.withTools = true;
+      return;
+    }
+    const params = { cwd: input.cwd, mcpServers };
+    l.withTools = mcpServers.length > 0;
     if (input.sessionId && caps?.sessionCapabilities?.resume) {
       try {
         const res = await l.conn.request<{ configOptions?: ConfigOption[] }>("session/resume", { ...params, sessionId: input.sessionId });

@@ -17,6 +17,7 @@ const ask = (method, params) =>
 let model = "mock-small";
 const sessions = new Set(["resumable-session"]);
 let cancelled = false;
+let lastMcp = [];
 const configOptions = () => [
   {
     id: "model",
@@ -47,7 +48,7 @@ createInterface({ input: process.stdin }).on("line", async (line) => {
         id,
         result: {
           protocolVersion: 1,
-          agentCapabilities: { sessionCapabilities: { resume: {} } },
+          agentCapabilities: { sessionCapabilities: { resume: {}, close: {} }, mcpCapabilities: { http: true } },
           agentInfo: { name: "mock", version: "1" },
           authMethods: [],
         },
@@ -55,10 +56,14 @@ createInterface({ input: process.stdin }).on("line", async (line) => {
     case "session/new": {
       const sessionId = `s-${sessions.size}`;
       sessions.add(sessionId);
+      lastMcp = params.mcpServers;
       return send({ id, result: { sessionId, configOptions: configOptions() } });
     }
+    case "session/close":
+      return send({ id, result: {} });
     case "session/resume":
       if (!sessions.has(params.sessionId)) return send({ id, error: { code: -32002, message: "unknown session" } });
+      lastMcp = params.mcpServers ?? [];
       return send({ id, result: { configOptions: configOptions() } });
     case "session/set_config_option":
       model = params.value;
@@ -91,6 +96,8 @@ createInterface({ input: process.stdin }).on("line", async (line) => {
           content: [{ type: "content", content: { type: "text", text: allowed ? `3 passed (${res.outcome.optionId})` : "rejected" } }],
         });
         update(sid, { sessionUpdate: "agent_message_chunk", content: { type: "text", text: "All done." } });
+      } else if (text === "mcp") {
+        update(sid, { sessionUpdate: "agent_message_chunk", content: { type: "text", text: JSON.stringify(lastMcp.map((m) => [m.type, m.name, m.url])) } });
       } else if (text === "slow") {
         while (!cancelled) {
           update(sid, { sessionUpdate: "agent_message_chunk", content: { type: "text", text: "." } });
