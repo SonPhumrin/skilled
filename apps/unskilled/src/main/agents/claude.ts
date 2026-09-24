@@ -1,11 +1,36 @@
 import { existsSync } from "node:fs";
 import { createRequire } from "node:module";
-import { query } from "@anthropic-ai/claude-agent-sdk";
+import { createSdkMcpServer, query, tool } from "@anthropic-ai/claude-agent-sdk";
 import type { HookCallback, Options, PermissionResult, SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 import type { ModelOption, PermissionMode } from "../../shared/types";
 import { checkCommand } from "../guard";
 import { summarizeToolInput, summarizeToolResult } from "./summarize";
-import type { AgentDriver, TurnInput } from "./types";
+import type { AgentDriver, HarnessTool, ToolOutput, TurnInput } from "./types";
+
+/** MCP server name for harness tools: they reach Claude as mcp__unskilled__<tool>. */
+export const TOOL_SERVER = "unskilled";
+
+function toCallToolResult(out: ToolOutput) {
+  const content: ({ type: "text"; text: string } | { type: "image"; data: string; mimeType: string })[] = [
+    { type: "text", text: out.text },
+  ];
+  if (out.imagePng) content.push({ type: "image", data: out.imagePng, mimeType: "image/png" });
+  return { content, isError: out.isError };
+}
+
+/** Harness tools as an in-process MCP server, plus the names to auto-allow. */
+export function harnessToolOptions(tools: HarnessTool[]): Pick<Options, "mcpServers" | "allowedTools"> {
+  if (!tools.length) return {};
+  const server = createSdkMcpServer({
+    name: TOOL_SERVER,
+    version: "1.0.0",
+    tools: tools.map((t) => tool(t.name, t.description, t.input, async (args) => toCallToolResult(await t.run(args)))),
+  });
+  return {
+    mcpServers: { [TOOL_SERVER]: server },
+    allowedTools: tools.filter((t) => t.autoAllow).map((t) => `mcp__${TOOL_SERVER}__${t.name}`),
+  };
+}
 
 const MODELS: ModelOption[] = [
   { id: "claude-opus-5", label: "Opus 5" },
@@ -98,6 +123,7 @@ export function createClaudeDriver(config: ClaudeDriverConfig): AgentDriver {
         allowDangerouslySkipPermissions: input.permissionMode === "full",
         includePartialMessages: true,
         plugins: [{ type: "local", path: config.pluginDir() }],
+        ...harnessToolOptions(input.tools),
         hooks: { PreToolUse: [{ matcher: "Bash", hooks: [guard] }] },
         canUseTool: async (toolName, toolInput, { suggestions }): Promise<PermissionResult> => {
           const decision = await input.requestPermission({

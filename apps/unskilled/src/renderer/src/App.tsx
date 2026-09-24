@@ -1,10 +1,10 @@
 import { useEffect } from "react";
 import type { PermissionMode } from "../../shared/types";
 import { Composer } from "./components/Composer";
-import { DiffPanel } from "./components/DiffPanel";
+import { Inspector } from "./components/Inspector";
 import { Sidebar } from "./components/Sidebar";
 import { ThreadView } from "./components/ThreadView";
-import { IconDiff, IconFolder, IconSparkle } from "./icons";
+import { IconDiff, IconFolder, IconGlobe, IconSparkle } from "./icons";
 import { useSelectedThread, useStore } from "./store";
 
 const MODES: { id: PermissionMode; label: string; title: string }[] = [
@@ -17,10 +17,11 @@ export function App() {
   const projects = useStore((s) => s.projects);
   const selectedProjectId = useStore((s) => s.selectedProjectId);
   const inspectorOpen = useStore((s) => s.inspectorOpen);
+  const inspectorTab = useStore((s) => s.inspectorTab);
   const models = useStore((s) => s.models);
   const thread = useSelectedThread();
   const running = useStore((s) => (thread ? Boolean(s.running[thread.id]) : false));
-  const { init, newThread, toggleInspector, updateThread, interrupt, addProject } = useStore.getState();
+  const { init, newThread, showInspector, updateThread, interrupt, addProject } = useStore.getState();
   const project = projects.find((p) => p.id === selectedProjectId) ?? null;
 
   useEffect(() => {
@@ -36,19 +37,23 @@ export function App() {
         void newThread();
       } else if (mod && e.shiftKey && e.key.toLowerCase() === "d") {
         e.preventDefault();
-        toggleInspector();
+        showInspector("changes");
+      } else if (mod && e.shiftKey && e.key.toLowerCase() === "b") {
+        e.preventDefault();
+        showInspector("browser");
       } else if (e.key === "Escape" && running && !document.querySelector(".skill-menu")) {
         void interrupt();
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [newThread, toggleInspector, interrupt, running]);
+  }, [newThread, showInspector, interrupt, running]);
 
-  const showInspector = inspectorOpen && project;
+  // The browser works without a project; Changes needs one.
+  const inspectorVisible = inspectorOpen && (project || inspectorTab === "browser");
 
   return (
-    <div className={`app${showInspector ? " with-inspector" : ""}`}>
+    <div className={`app${inspectorVisible ? " with-inspector" : ""}`}>
       <Sidebar />
       <main className="main">
         <header className="main-header drag">
@@ -89,9 +94,22 @@ export function App() {
             </>
           )}
           {project && (
-            <button className={`icon-button${inspectorOpen ? " active" : ""}`} title="Changes (⌘⇧D)" onClick={toggleInspector}>
-              <IconDiff />
-            </button>
+            <>
+              <button
+                className={`icon-button${inspectorOpen && inspectorTab === "changes" ? " active" : ""}`}
+                title="Changes (⌘⇧D)"
+                onClick={() => showInspector("changes")}
+              >
+                <IconDiff />
+              </button>
+              <button
+                className={`icon-button${inspectorOpen && inspectorTab === "browser" ? " active" : ""}`}
+                title="Browser (⌘⇧B)"
+                onClick={() => showInspector("browser")}
+              >
+                <IconGlobe />
+              </button>
+            </>
           )}
         </header>
 
@@ -127,7 +145,7 @@ export function App() {
           </>
         )}
       </main>
-      {showInspector && <DiffPanel projectId={project.id} />}
+      {inspectorVisible && <Inspector projectId={project?.id ?? null} />}
     </div>
   );
 }

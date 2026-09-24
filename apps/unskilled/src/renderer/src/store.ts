@@ -22,6 +22,11 @@ interface State {
   running: Record<string, boolean>;
   permissions: PermissionRequest[];
   inspectorOpen: boolean;
+  inspectorTab: "changes" | "browser";
+  /** The browser pane has been shown this session, so its <webview> stays mounted. */
+  browserMounted: boolean;
+  /** A URL for the browser pane to load. */
+  browserUrl: string | null;
   /** A skill to pre-fill in the composer, set by the empty-state shortcuts. */
   pendingSkill: string | null;
   diffVersion: number; // bumps when a turn ends, so the diff refreshes
@@ -37,6 +42,7 @@ interface State {
   interrupt(): Promise<void>;
   respond(requestId: string, decision: "allow-once" | "allow-always" | "deny"): Promise<void>;
   toggleInspector(): void;
+  showInspector(tab: "changes" | "browser"): void;
   apply(update: LiveUpdate): void;
 }
 
@@ -59,6 +65,9 @@ export const useStore = create<State>((set, get) => ({
   running: {},
   permissions: [],
   inspectorOpen: false,
+  inspectorTab: "changes",
+  browserMounted: false,
+  browserUrl: null,
   pendingSkill: null,
   diffVersion: 0,
 
@@ -66,11 +75,12 @@ export const useStore = create<State>((set, get) => ({
     // React StrictMode runs effects twice in development; subscribe once.
     if (initialized) return;
     initialized = true;
+    // Subscribe before the first await, so no update sent during startup is lost.
+    api().onUpdate((u) => get().apply(u));
     const [projects, skills, models] = await Promise.all([api().listProjects(), api().listSkills(), api().listModels()]);
     const threads: Record<string, Thread[]> = {};
     for (const p of projects) threads[p.id] = await api().listThreads(p.id);
     set({ projects, skills, models, threads });
-    api().onUpdate((u) => get().apply(u));
     const first = projects[0];
     if (first) {
       await get().selectProject(first.id);
@@ -154,6 +164,14 @@ export const useStore = create<State>((set, get) => ({
     set((s) => ({ inspectorOpen: !s.inspectorOpen }));
   },
 
+  showInspector(tab) {
+    set((s) => {
+      // Clicking the open tab's button again closes the inspector.
+      if (s.inspectorOpen && s.inspectorTab === tab) return { inspectorOpen: false };
+      return { inspectorOpen: true, inspectorTab: tab, browserMounted: s.browserMounted || tab === "browser" };
+    });
+  },
+
   apply(update) {
     switch (update.type) {
       case "event":
@@ -184,6 +202,9 @@ export const useStore = create<State>((set, get) => ({
             ? {}
             : { permissions: [...s.permissions, update.request] },
         );
+        return;
+      case "browser-open":
+        set({ inspectorOpen: true, inspectorTab: "browser", browserMounted: true, browserUrl: update.url ?? null });
         return;
       case "thread":
         set((s) => ({

@@ -1,10 +1,12 @@
-import { mkdirSync } from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { BrowserWindow, app, dialog, ipcMain, nativeTheme, shell } from "electron";
 import type { LiveUpdate, PermissionDecision, SendRequest, Thread } from "../shared/types";
 import { spawnSync } from "node:child_process";
 import { createClaudeDriver, resolvePackagedClaudeBinary } from "./agents/claude";
+import { BrowserController, isAllowedUrl } from "./browser/controller";
+import { browserTools } from "./browser/tools";
 import { Store } from "./db";
 import { Service } from "./service";
 import { defaultSkillsCandidates, findSkillsRoot, loadCatalog } from "./skills/catalog";
@@ -39,7 +41,16 @@ function createWindow(): BrowserWindow {
       sandbox: true,
       contextIsolation: true,
       nodeIntegration: false,
+      webviewTag: true, // the browser pane
     },
+  });
+  // The browser pane's <webview> gets no preload, no Node, and only web URLs.
+  win.webContents.on("will-attach-webview", (event, webPreferences, params) => {
+    delete webPreferences.preload;
+    webPreferences.nodeIntegration = false;
+    webPreferences.contextIsolation = true;
+    webPreferences.sandbox = true;
+    if (params.src && !isAllowedUrl(params.src)) event.preventDefault();
   });
   win.once("ready-to-show", () => {
     if (!smoke) win.show();
@@ -77,7 +88,12 @@ async function main(): Promise<void> {
   const broadcast = (update: LiveUpdate) => {
     for (const w of windows) if (!w.isDestroyed()) w.webContents.send("unskilled:update", update);
   };
-  const service = new Service(store, catalog, driver, broadcast);
+  const browser = new BrowserController(
+    (url) => broadcast({ type: "browser-open", url }),
+    join(userData, "screenshots"),
+  );
+  const tools = browserTools(browser);
+  const service = new Service(store, catalog, driver, broadcast, () => (browser.enabled ? tools : []));
 
   ipcMain.handle("projects:list", () => store.listProjects());
   ipcMain.handle("projects:add", async (event) => {
@@ -114,6 +130,7 @@ async function main(): Promise<void> {
     service.respondPermission(requestId, decision),
   );
   ipcMain.handle("diff:get", (_e, projectId: string) => service.getDiff(projectId));
+  ipcMain.handle("browser:attached", (_e, webContentsId: number) => browser.attach(webContentsId));
 
   const open = () => {
     const win = createWindow();
@@ -123,7 +140,13 @@ async function main(): Promise<void> {
   };
   const first = open();
 
+  const smokeBrowser = () => smokeBrowserWith(tools);
   if (smoke) {
+    // Renderer errors show up in the CI log.
+    first.webContents.on("console-message", (details) => {
+      if (details.level === "error" || details.level === "warning") console.log(`renderer ${details.level}: ${details.message}`);
+    });
+    first.webContents.on("did-attach-webview", () => console.log("smoke: webview attached"));
     // CI smoke test: the window loads, the preload bridge is there, and the
     // skills catalog answers. Exit 0 only if all three hold.
     first.webContents.once("did-finish-load", async () => {
@@ -140,8 +163,16 @@ async function main(): Promise<void> {
           binaryOk = Boolean(run && run.status === 0);
           console.log(`smoke: claude binary ${bin ?? "(not found)"} -> ${run?.stdout.trim() || run?.error?.message || "no output"}`);
         }
-        console.log(`smoke: ${ok && binaryOk ? "ok" : "failed"}`);
-        app.exit(ok && binaryOk ? 0 : 1);
+        const browserOk = await smokeBrowser();
+        const shot = process.env.UNSKILLED_SMOKE_SCREENSHOT;
+        if (shot) {
+          first.showInactive();
+          await new Promise((r) => setTimeout(r, 800));
+          writeFileSync(shot, (await first.webContents.capturePage()).toPNG());
+          console.log(`smoke: screenshot ${shot}`);
+        }
+        console.log(`smoke: ${ok && binaryOk && browserOk ? "ok" : "failed"}`);
+        app.exit(ok && binaryOk && browserOk ? 0 : 1);
       } catch (err) {
         console.error("smoke: failed", err);
         app.exit(1);
@@ -157,6 +188,38 @@ async function main(): Promise<void> {
     if (process.platform !== "darwin") app.quit();
   });
   app.on("before-quit", () => store.close());
+}
+
+/**
+ * Smoke-test the browser pane through the agent's own tools: open a page,
+ * snapshot it, type, click, and read the console. Proves the <webview>, the
+ * DevTools bridge, and the snapshot script on every OS CI runs.
+ */
+async function smokeBrowserWith(tools: ReturnType<typeof browserTools>): Promise<boolean> {
+  const byName = (n: string) => tools.find((t) => t.name === n)!;
+  const page =
+    "data:text/html," +
+    encodeURIComponent(`<!doctype html><title>Smoke</title><h1>Sign in</h1>
+      <label for=u>Email</label><input id=u>
+      <button onclick="document.querySelector('p').textContent = 'Hello ' + document.getElementById('u').value; console.error('smoke-console-check')">Go</button>
+      <p>waiting</p>`);
+  try {
+    const opened = await byName("browser_open").run({ url: page });
+    const ref = (label: string) => new RegExp(`\\[(e\\d+)\\] ${label}`).exec(opened.text)?.[1];
+    const input = ref('input "Email"');
+    const button = ref('button "Go"');
+    if (!input || !button) throw new Error(`unexpected snapshot:\n${opened.text}`);
+    await byName("browser_type").run({ ref: input, text: "ada@example.com" });
+    await byName("browser_click").run({ ref: button });
+    const after = await byName("browser_snapshot").run({});
+    const logs = await byName("browser_logs").run({});
+    const ok = after.text.includes("Hello ada@example.com") && logs.text.includes("smoke-console-check");
+    console.log(`smoke: browser ${ok ? "ok" : `failed\n${after.text}\n${logs.text}`}`);
+    return ok;
+  } catch (err) {
+    console.error("smoke: browser failed", err);
+    return false;
+  }
 }
 
 function pick<T extends object, K extends keyof T>(obj: T, keys: K[]): Pick<T, K> {

@@ -133,6 +133,7 @@ export function installMock(): void {
     send: async () => {},
     interrupt: async () => {},
     respondPermission: async () => {},
+    browserAttached: async () => {},
     getDiff: async () => [
       {
         path: "src/middleware/rateLimit.ts",

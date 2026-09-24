@@ -559,3 +559,43 @@ button { cursor: default; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 1ms !important; transition-duration: 1ms !important; }
 }
+
+/* ---------- browser pane ---------- */
+
+.inspector-body[hidden] { display: none; }
+.browser-body { display: flex; flex-direction: column; overflow: hidden; }
+.browser { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+.browser-bar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--hairline);
+}
+.browser-bar .address {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  margin-left: 6px;
+  padding: 0 10px;
+  border-radius: var(--radius-s);
+  background: var(--bg-subtle);
+  border: 1px solid transparent;
+  color: var(--text-tertiary);
+  transition: border-color 150ms var(--ease), background 150ms var(--ease);
+}
+.browser-bar .address:focus-within { border-color: rgb(10 132 255 / 0.5); background: var(--bg-elevated); }
+.browser-bar input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  font-size: 12px;
+  color: var(--text);
+  user-select: text;
+}
+.browser-view { flex: 1; min-height: 0; width: 100%; background: #fff; display: flex; }
+.inspector-head .segmented { -webkit-app-region: no-drag; }

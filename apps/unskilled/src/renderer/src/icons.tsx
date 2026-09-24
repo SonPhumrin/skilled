@@ -37,3 +37,10 @@ export const IconRefresh = ({ size = 16 }: P) =>
 
 export const IconSparkle = ({ size = 16 }: P) =>
   svg(size, <path d="M8 2.5 9.3 6.7 13.5 8l-4.2 1.3L8 13.5 6.7 9.3 2.5 8l4.2-1.3z" />);
+
+export const IconArrowLeft = ({ size = 16 }: P) => svg(size, <><path d="M13 8H3.5" /><path d="M7.5 3.8 3.3 8l4.2 4.2" /></>);
+
+export const IconArrowRight = ({ size = 16 }: P) => svg(size, <><path d="M3 8h9.5" /><path d="M8.5 3.8 12.7 8l-4.2 4.2" /></>);
+
+export const IconGlobe = ({ size = 16 }: P) =>
+  svg(size, <><circle cx="8" cy="8" r="5.5" /><path d="M2.5 8h11" /><path d="M8 2.5c1.6 1.6 2.3 3.4 2.3 5.5S9.6 11.9 8 13.5C6.4 11.9 5.7 10.1 5.7 8S6.4 4.1 8 2.5z" /></>);

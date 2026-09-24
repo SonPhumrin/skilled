@@ -12,6 +12,15 @@ The app follows the contract in [HARNESS.md](../../HARNESS.md):
 - **User-invoked skills (23)** never go to the agent. The `/` menu lists them from `skills.json`. When you pick one, the app puts the skill's body into your message, the same thing Claude Code does for a typed `/command`.
 - **git-guardrails** runs as a pre-tool hook on every shell command the agent issues. It needs Python 3; without it the guard is off.
 
+## The built-in browser
+
+The Browser tab (⌘⇧B) is a real Chromium page beside the thread: open your dev server there, and the agent can drive the same page. Once you've opened the tab, the agent gets seven tools: `browser_open`, `browser_snapshot`, `browser_click`, `browser_type`, `browser_eval`, `browser_logs`, and `browser_screenshot`. Before that, they aren't sent at all, so they cost no context.
+
+- Snapshots are text with element refs (`[e3] button "Sign in"`), a fraction of a screenshot's tokens. Screenshots are saved to files, and the model sees the image only when it asks.
+- Clicks are real mouse events through the Chrome DevTools Protocol. Console errors, uncaught exceptions, and failed or 4xx/5xx requests are captured as they happen.
+- `verify-in-browser` picks these tools up automatically, so a UI check runs where you can watch it.
+- The pane has no Node access and no preload, and loads only http(s), file, and data URLs. `browser_eval` asks before it runs in Ask mode; the other tools don't.
+
 ## Running it
 
 From the repo root:
@@ -31,7 +40,7 @@ To look at the UI without Electron or an agent: `pnpm --filter unskilled preview
 
 `pnpm --filter unskilled dist` builds for the OS you're on: a `.dmg`/`.zip` on macOS, an NSIS `.exe` on Windows, an `.AppImage` on Linux. To build all three, push a tag `unskilled-v<version>`; the `release-unskilled` workflow builds them and uploads them as artifacts. Builds are unsigned until signing secrets are added.
 
-CI runs typecheck, tests, packaging, and a smoke test of the packaged app on all three OSes. The smoke test (`--smoke`) checks four things: the window loads, the preload bridge works, the skills catalog answers, and the bundled Claude Code binary runs.
+CI runs typecheck, tests, packaging, and a smoke test of the packaged app on all three OSes. The smoke test (`--smoke`) checks five things: the window loads, the preload bridge works, the skills catalog answers, the bundled Claude Code binary runs, and the browser tools can open a page, type, click, and read the console. Set `UNSKILLED_SMOKE_SCREENSHOT=<file.png>` to also save a screenshot of the window.
 
 ## Layout
 
@@ -43,6 +52,7 @@ CI runs typecheck, tests, packaging, and a smoke test of the packaged app on all
 | `src/main/skills/` | Reading `skills.json`, generating the plugin, composing prompts |
 | `src/main/db.ts` | SQLite store (`node:sqlite`): projects, threads, events |
 | `src/main/git.ts` | Working-tree diff for the Changes panel |
+| `src/main/browser/` | The browser pane's controller (DevTools Protocol), page snapshots, and the agent's `browser_*` tools |
 | `src/main/guard.ts` | git-guardrails pre-tool hook |
 | `src/preload/` | The `window.unskilled` bridge |
 | `src/shared/types.ts` | The main ↔ renderer contract |
@@ -54,5 +64,5 @@ Electron 44 (the same Chromium on every OS, which the built-in browser needs), R
 
 ## Roadmap
 
-- **Milestone 2:** Codex (app-server) and a generic ACP driver, which covers deepseek-harness, Gemini CLI, and Cursor through one adapter. Also the built-in browser pane with `browser_*` tools, so `verify-in-browser` runs where you can watch it, and a terminal tab.
+- **Milestone 2:** ~~the built-in browser pane~~ (done). Still to come: Codex (app-server), a generic ACP driver (covers deepseek-harness, Gemini CLI, and Cursor through one adapter), an element picker in the browser, and a terminal tab.
 - **Milestone 3:** code signing and notarization, auto-update, and a per-thread view of token usage.

@@ -103,7 +103,9 @@ export type LiveUpdate =
   | { type: "text-delta"; threadId: string; text: string }
   | { type: "running"; threadId: string; running: boolean }
   | { type: "permission"; request: PermissionRequest }
-  | { type: "thread"; thread: Thread };
+  | { type: "thread"; thread: Thread }
+  /** The agent needs the browser pane: show it, optionally at a URL. */
+  | { type: "browser-open"; url?: string };
 
 /** The API the preload script exposes as `window.unskilled`. */
 export interface UnskilledApi {
@@ -121,5 +123,7 @@ export interface UnskilledApi {
   interrupt(threadId: string): Promise<void>;
   respondPermission(requestId: string, decision: PermissionDecision): Promise<void>;
   getDiff(projectId: string): Promise<DiffFile[]>;
+  /** The browser pane's <webview> is ready; main takes control of it. */
+  browserAttached(webContentsId: number): Promise<void>;
   onUpdate(listener: (update: LiveUpdate) => void): () => void;
 }

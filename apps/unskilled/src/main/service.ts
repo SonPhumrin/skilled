@@ -10,7 +10,7 @@ import type {
   Thread,
   ThreadEvent,
 } from "../shared/types";
-import type { AgentDriver } from "./agents/types";
+import type { AgentDriver, HarnessTool } from "./agents/types";
 import type { Store } from "./db";
 import { workingTreeDiff } from "./git";
 import type { Catalog } from "./skills/catalog";
@@ -29,6 +29,8 @@ export class Service {
     private catalog: Catalog,
     private driver: AgentDriver,
     private broadcast: (update: LiveUpdate) => void,
+    /** Tools the harness offers the agent this turn (the browser pane's, once it's open). */
+    private harnessTools: () => HarnessTool[] = () => [],
   ) {}
 
   listSkills(): SkillEntry[] {
@@ -79,6 +81,7 @@ export class Service {
         model: thread.model,
         permissionMode: thread.permissionMode,
         signal: controller.signal,
+        tools: this.harnessTools(),
         onEvent: (event) => this.emit(thread.id, event),
         onTextDelta: (text) => this.broadcast({ type: "text-delta", threadId: thread.id, text }),
         onSession: (sessionId) => {

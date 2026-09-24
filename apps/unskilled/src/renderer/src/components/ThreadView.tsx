@@ -115,6 +115,7 @@ function ToolRow({ tool, result, running }: { tool: ToolEvent; result?: ResultEv
 }
 
 function prettyTool(name: string): string {
+  if (name.startsWith("mcp__unskilled__")) return name.slice("mcp__unskilled__".length);
   if (name.startsWith("mcp__")) return name.split("__").slice(1).join(" · ");
   return name;
 }
