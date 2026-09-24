@@ -5,7 +5,7 @@
 #
 # Usage:
 #   ./install.sh /path/to/project [--claude] [--opencode] [--antigravity] [--vendor]
-#   ./install.sh /path/to/project [flags...] [--opencode-delegation] [--agy-delegation] --uninstall
+#   ./install.sh /path/to/project [flags...] --uninstall
 #
 # No harness flag = all three (unchanged default). Pass one or more to
 # install only those -- e.g. `--claude` alone if a project never runs
@@ -71,83 +71,10 @@
 #                                                .claude/skills is vendored
 #                                                anyway just to give OpenCode
 #                                                something to point at).
-#   --opencode-delegation  Optional, independent add-on -- not one of the
-#                                                three harness flags above,
-#                                                and never implied by "no
-#                                                harness flag = all three".
-#                                                Claude Code only: installs
-#                                                the oc* slash commands into
-#                                                <project>/.claude/commands,
-#                                                plus opencode's own
-#                                                project-local agent personas
-#                                                into <project>/.opencode/agent,
-#                                                and merges a policy fragment
-#                                                into <project>/CLAUDE.md
-#                                                between
-#                                                <!-- skilled:opencode-delegation:start/end -->
-#                                                markers (idempotent re-run,
-#                                                never duplicated). Off by
-#                                                default even after install:
-#                                                gated by
-#                                                "skilledOpencodeDelegation":
-#                                                false written once into
-#                                                <project>/.claude/settings.json
-#                                                and never overwritten on a
-#                                                later install -- flip it to
-#                                                true by hand to turn the
-#                                                add-on on. Requires the
-#                                                opencode CLI plus a working
-#                                                model/provider already
-#                                                configured on your machine;
-#                                                skilled does not install or
-#                                                configure opencode itself,
-#                                                and ships no API keys or
-#                                                provider config. See
-#                                                README.md for details.
-#   --agy-delegation       Optional, independent add-on, same shape as
-#                                                --opencode-delegation above
-#                                                but for agy (Google's
-#                                                Antigravity CLI): installs
-#                                                the agy-research slash
-#                                                command into
-#                                                <project>/.claude/commands
-#                                                and merges a policy fragment
-#                                                into <project>/CLAUDE.md
-#                                                between
-#                                                <!-- skilled:agy-delegation:start/end -->
-#                                                markers. No per-role agent
-#                                                persona directory is
-#                                                installed -- agy-delegation
-#                                                calls agy's own default
-#                                                agent directly with a
-#                                                self-contained brief each
-#                                                time. Off by default even
-#                                                after install: gated by
-#                                                "skilledAgyDelegation":
-#                                                false written once into
-#                                                <project>/.claude/settings.json,
-#                                                never overwritten on a later
-#                                                install. Requires the agy
-#                                                CLI already installed and
-#                                                authenticated on your
-#                                                machine; skilled does not
-#                                                install or configure agy
-#                                                itself. See README.md.
 set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SKILLS_DIR="$REPO_DIR/skills"
-OD_DIR="$REPO_DIR/opencode-delegation"
-OD_COMMANDS_DIR="$OD_DIR/commands"
-OD_AGENTS_DIR="$OD_DIR/agents"
-OD_START_MARKER="<!-- skilled:opencode-delegation:start -->"
-OD_END_MARKER="<!-- skilled:opencode-delegation:end -->"
-OD_SETTINGS_KEY="skilledOpencodeDelegation"
-AGY_DIR="$REPO_DIR/agy-delegation"
-AGY_COMMANDS_DIR="$AGY_DIR/commands"
-AGY_START_MARKER="<!-- skilled:agy-delegation:start -->"
-AGY_END_MARKER="<!-- skilled:agy-delegation:end -->"
-AGY_SETTINGS_KEY="skilledAgyDelegation"
 INSTALLER_LIB="$REPO_DIR/installer_lib.py"
 MANIFEST_FILE=".skilled-install.json"
 
@@ -187,8 +114,7 @@ rel_path() {
 }
 
 # Validate every config target this run will actually touch BEFORE any
-# mutation happens -- malformed JSON, a wrong-typed field, or an unbalanced
-# CLAUDE.md marker pair aborts here with a diagnostic and nonzero exit,
+# mutation happens -- malformed JSON or a wrong-typed field aborts here with a diagnostic and nonzero exit,
 # instead of failing partway through after some files were already written.
 # Only checks files this run's flags will touch, so an unrelated malformed
 # file elsewhere in the project never blocks an unrelated install.
@@ -208,32 +134,12 @@ preflight_checks() {
       python3 "$INSTALLER_LIB" validate-field "$candidate" "skills.paths" list
     done
   fi
-  if [ "$DO_OD" -eq 1 ]; then
-    python3 "$INSTALLER_LIB" validate-json "$PROJECT_PATH/.claude/settings.json"
-    python3 "$INSTALLER_LIB" validate-markers "$PROJECT_PATH/CLAUDE.md" "$OD_START_MARKER" "$OD_END_MARKER"
-    if ! command -v opencode >/dev/null 2>&1; then
-      echo "note: opencode-delegation requested but the 'opencode' CLI isn't on PATH." >&2
-      echo "      This add-on installs but does nothing until opencode is installed" >&2
-      echo "      and \"$OD_SETTINGS_KEY\": true is set in .claude/settings.json." >&2
-    fi
-  fi
-  if [ "$DO_AGY" -eq 1 ]; then
-    python3 "$INSTALLER_LIB" validate-json "$PROJECT_PATH/.claude/settings.json"
-    python3 "$INSTALLER_LIB" validate-markers "$PROJECT_PATH/CLAUDE.md" "$AGY_START_MARKER" "$AGY_END_MARKER"
-    if ! command -v agy >/dev/null 2>&1; then
-      echo "note: agy-delegation requested but the 'agy' CLI isn't on PATH." >&2
-      echo "      This add-on installs but does nothing until agy is installed" >&2
-      echo "      and \"$AGY_SETTINGS_KEY\": true is set in .claude/settings.json." >&2
-    fi
-  fi
 }
 
 MODE="install"
 DO_CLAUDE=0
 DO_OPENCODE=0
 DO_ANTIGRAVITY=0
-DO_OD=0
-DO_AGY=0
 VENDOR=0
 PROJECT_PATH=""
 
@@ -243,8 +149,6 @@ for arg in "$@"; do
     --claude) DO_CLAUDE=1 ;;
     --opencode) DO_OPENCODE=1 ;;
     --antigravity) DO_ANTIGRAVITY=1 ;;
-    --opencode-delegation) DO_OD=1 ;;
-    --agy-delegation) DO_AGY=1 ;;
     --vendor) VENDOR=1 ;;
     --*) echo "error: unknown flag $arg" >&2; exit 1 ;;
     *)
@@ -258,17 +162,12 @@ for arg in "$@"; do
 done
 
 if [ -z "$PROJECT_PATH" ]; then
-  echo "Usage: $0 /path/to/project [--claude] [--opencode] [--antigravity] [--opencode-delegation] [--agy-delegation] [--vendor] [--uninstall]" >&2
+  echo "Usage: $0 /path/to/project [--claude] [--opencode] [--antigravity] [--vendor] [--uninstall]" >&2
   exit 1
 fi
 
-# No harness flag given: default to all three, same as before this flag
-# existed -- but not when --opencode-delegation or --agy-delegation was the
-# only flag passed. Those flags are independent add-ons, not a fourth/fifth
-# harness: someone running `--uninstall --opencode-delegation` almost
-# certainly means "just remove this add-on," not "also wipe every skill
-# this project has installed."
-if [ "$DO_CLAUDE" -eq 0 ] && [ "$DO_OPENCODE" -eq 0 ] && [ "$DO_ANTIGRAVITY" -eq 0 ] && [ "$DO_OD" -eq 0 ] && [ "$DO_AGY" -eq 0 ]; then
+# No harness flag given: default to all three.
+if [ "$DO_CLAUDE" -eq 0 ] && [ "$DO_OPENCODE" -eq 0 ] && [ "$DO_ANTIGRAVITY" -eq 0 ]; then
   DO_CLAUDE=1
   DO_OPENCODE=1
   DO_ANTIGRAVITY=1
@@ -620,412 +519,6 @@ PYEOF
   echo "  $target  (unregistered)"
 }
 
-# opencode-delegation add-on helpers. Independent of the skill-distribution
-# functions above -- these install Claude Code slash commands and opencode's
-# own project-local agent personas, not Agent Skills, so they never touch
-# .agents/skills or opencode.json's "skills" key. Manifest-aware like the
-# skill installers above: never overwrites or deletes a file a project owner
-# put there themselves under the same name.
-link_od_dir() {
-  local src_dir="$1" target_dir="$2" label="$3"
-  require_python3
-  mkdir -p "$target_dir"
-  local linked=0 conflicts=0
-  for f in "$src_dir"/*.md; do
-    local base rel status
-    base="$(basename "$f")"
-    rel="$(rel_path "$target_dir")/$base"
-    status="$(manifest_check "$rel" "symlink" "$f")"
-    case "$status" in
-      absent|owned-current|legacy-symlink)
-        rm -rf "$target_dir/$base"
-        ln -sfn "$f" "$target_dir/$base"
-        manifest_record "$rel" "symlink" "opencode-delegation:$base"
-        linked=$((linked + 1))
-        ;;
-      *)
-        echo "  warning: $target_dir/$base already exists and isn't skilled's own install -- skipped." >&2
-        conflicts=$((conflicts + 1))
-        ;;
-    esac
-  done
-  echo "  $target_dir  ($linked $label symlinked$([ "$conflicts" -gt 0 ] && echo ", $conflicts conflict(s) skipped"))"
-}
-
-copy_od_dir() {
-  local src_dir="$1" target_dir="$2" label="$3"
-  require_python3
-  mkdir -p "$target_dir"
-  local copied=0 conflicts=0
-  for f in "$src_dir"/*.md; do
-    local base dest rel status
-    base="$(basename "$f")"
-    dest="$target_dir/$base"
-    rel="$(rel_path "$target_dir")/$base"
-    status="$(manifest_check "$rel" "vendor-file")"
-    case "$status" in
-      absent|owned-current)
-        # rm -rf first: plain `cp` onto an existing symlink writes *through*
-        # it into whatever it points at -- if a prior symlink-mode install
-        # is being converted to --vendor, that target is this repo's own
-        # source file. Removing the dest first makes cp create a fresh
-        # regular file instead of following a stale link.
-        rm -rf "$dest"
-        cp "$f" "$dest"
-        manifest_record "$rel" "vendor-file" "opencode-delegation:$base"
-        copied=$((copied + 1))
-        ;;
-      *)
-        echo "  warning: $dest already exists and isn't skilled's own unmodified copy -- skipped." >&2
-        conflicts=$((conflicts + 1))
-        ;;
-    esac
-  done
-  echo "  $target_dir  ($copied $label copied$([ "$conflicts" -gt 0 ] && echo ", $conflicts conflict(s) skipped"))"
-}
-
-# Removes only what the manifest says skilled installed here, and only if
-# it's still exactly what was last installed -- never a dest file matching a
-# source filename by coincidence, and never a copy the project owner has
-# since edited.
-remove_od_dir() {
-  local src_dir="$1" target_dir="$2" label="$3"
-  require_python3
-  [ -d "$target_dir" ] || return 0
-  local removed=0 kept=0
-  for f in "$src_dir"/*.md; do
-    local base dest rel kind status
-    base="$(basename "$f")"
-    dest="$target_dir/$base"
-    [ -e "$dest" ] || [ -L "$dest" ] || continue
-    rel="$(rel_path "$target_dir")/$base"
-    kind="$(manifest_entry_kind "$rel")"
-    if [ -z "$kind" ]; then
-      continue
-    fi
-    status="$(manifest_check "$rel" "$kind")"
-    if [ "$status" = "owned-current" ]; then
-      rm -f "$dest"
-      manifest_remove_entry "$rel"
-      removed=$((removed + 1))
-    else
-      echo "  warning: $dest changed since skilled installed it -- left in place." >&2
-      kept=$((kept + 1))
-    fi
-  done
-  echo "  $target_dir  (removed $removed $label$([ "$kept" -gt 0 ] && echo ", $kept left in place"))"
-}
-
-# Merges opencode-delegation/CLAUDE.fragment.md into <project>/CLAUDE.md.
-# The fragment file's own first/last lines ARE the start/end markers, so
-# "insert the fragment" and "insert the marked block" are the same
-# operation. No CLAUDE.md yet: the fragment becomes the whole file. Markers
-# already present: replace everything between them (idempotent re-run, never
-# duplicated). No markers yet but file exists: append.
-merge_claude_md() {
-  local project="$1"
-  local claude_md="$project/CLAUDE.md"
-  local fragment="$OD_DIR/CLAUDE.fragment.md"
-  if [ ! -f "$claude_md" ]; then
-    cp "$fragment" "$claude_md"
-    echo "  $claude_md  (created)"
-    return 0
-  fi
-  if grep -qF "$OD_START_MARKER" "$claude_md"; then
-    awk -v start="$OD_START_MARKER" -v end="$OD_END_MARKER" -v fragfile="$fragment" '
-      $0 == start {
-        while ((getline line < fragfile) > 0) print line
-        close(fragfile)
-        skip = 1
-        next
-      }
-      $0 == end { skip = 0; next }
-      skip { next }
-      { print }
-    ' "$claude_md" > "$claude_md.tmp" && mv "$claude_md.tmp" "$claude_md"
-    echo "  $claude_md  (updated existing opencode-delegation block)"
-  else
-    { echo; cat "$fragment"; } >> "$claude_md"
-    echo "  $claude_md  (appended)"
-  fi
-}
-
-# Uninstall counterpart: strips the marked block, leaving the rest of the
-# project's CLAUDE.md untouched. Leaves an empty file rather than deleting it
-# if the block was the file's only content.
-strip_claude_md_block() {
-  local project="$1"
-  local claude_md="$project/CLAUDE.md"
-  [ -f "$claude_md" ] || return 0
-  grep -qF "$OD_START_MARKER" "$claude_md" || return 0
-  awk -v start="$OD_START_MARKER" -v end="$OD_END_MARKER" '
-    $0 == start { skip = 1; next }
-    $0 == end { skip = 0; next }
-    skip { next }
-    { print }
-  ' "$claude_md" > "$claude_md.tmp" && mv "$claude_md.tmp" "$claude_md"
-  echo "  $claude_md  (removed opencode-delegation block)"
-}
-
-# Writes "skilledOpencodeDelegation": false into <project>/.claude/settings.json
-# the first time this add-on is installed -- the on/off switch a human flips
-# by hand afterward. Never overwrites an existing value, so re-running
-# install (or --vendor resync) never resets someone's toggle back to off.
-ensure_od_settings_toggle() {
-  local project="$1"
-  local settings_dir="$project/.claude"
-  local settings_file="$settings_dir/settings.json"
-  if ! command -v python3 >/dev/null 2>&1; then
-    echo "  warning: python3 not found, skipped $settings_file (add \"$OD_SETTINGS_KEY\": false by hand, then flip it to true to enable this add-on)" >&2
-    return 0
-  fi
-  mkdir -p "$settings_dir"
-  python3 - "$settings_file" "$OD_SETTINGS_KEY" <<'PYEOF'
-import json, os, sys
-
-json_file, key = sys.argv[1], sys.argv[2]
-data = {}
-if os.path.exists(json_file):
-    content = open(json_file).read().strip()
-    if content:
-        data = json.loads(content)
-
-if key not in data:
-    data[key] = False
-    tmp = f"{json_file}.tmp.{os.getpid()}"
-    with open(tmp, "w") as f:
-        json.dump(data, f, indent=2)
-        f.write("\n")
-        f.flush()
-        os.fsync(f.fileno())
-    os.replace(tmp, json_file)
-PYEOF
-  echo "  $settings_file  (ensured \"$OD_SETTINGS_KEY\": false if not already set)"
-}
-
-remove_od_settings_toggle() {
-  local project="$1"
-  local settings_file="$project/.claude/settings.json"
-  [ -f "$settings_file" ] || return 0
-  if ! command -v python3 >/dev/null 2>&1; then
-    echo "  warning: python3 not found, left $settings_file untouched" >&2
-    return 0
-  fi
-  python3 - "$settings_file" "$OD_SETTINGS_KEY" <<'PYEOF'
-import json, os, sys
-
-json_file, key = sys.argv[1], sys.argv[2]
-content = open(json_file).read().strip()
-if not content:
-    sys.exit(0)
-data = json.loads(content)
-if key in data:
-    del data[key]
-    tmp = f"{json_file}.tmp.{os.getpid()}"
-    with open(tmp, "w") as f:
-        json.dump(data, f, indent=2)
-        f.write("\n")
-        f.flush()
-        os.fsync(f.fileno())
-    os.replace(tmp, json_file)
-PYEOF
-  echo "  $settings_file  (removed \"$OD_SETTINGS_KEY\" key if present)"
-}
-
-# agy-delegation add-on helpers. Same shape as the opencode-delegation
-# helpers above, minus an agents dir: agy-delegation has no per-role
-# persona file to install -- delegation calls invoke agy's own default
-# agent directly with a self-contained brief each time, the same way
-# `opencode run --agent orchestrator "Delegate to..."` doesn't need a
-# project-local orchestrator.md to work.
-link_agy_dir() {
-  local src_dir="$1" target_dir="$2" label="$3"
-  require_python3
-  mkdir -p "$target_dir"
-  local linked=0 conflicts=0
-  for f in "$src_dir"/*.md; do
-    local base rel status
-    base="$(basename "$f")"
-    rel="$(rel_path "$target_dir")/$base"
-    status="$(manifest_check "$rel" "symlink" "$f")"
-    case "$status" in
-      absent|owned-current|legacy-symlink)
-        rm -rf "$target_dir/$base"
-        ln -sfn "$f" "$target_dir/$base"
-        manifest_record "$rel" "symlink" "agy-delegation:$base"
-        linked=$((linked + 1))
-        ;;
-      *)
-        echo "  warning: $target_dir/$base already exists and isn't skilled's own install -- skipped." >&2
-        conflicts=$((conflicts + 1))
-        ;;
-    esac
-  done
-  echo "  $target_dir  ($linked $label symlinked$([ "$conflicts" -gt 0 ] && echo ", $conflicts conflict(s) skipped"))"
-}
-
-copy_agy_dir() {
-  local src_dir="$1" target_dir="$2" label="$3"
-  require_python3
-  mkdir -p "$target_dir"
-  local copied=0 conflicts=0
-  for f in "$src_dir"/*.md; do
-    local base dest rel status
-    base="$(basename "$f")"
-    dest="$target_dir/$base"
-    rel="$(rel_path "$target_dir")/$base"
-    status="$(manifest_check "$rel" "vendor-file")"
-    case "$status" in
-      absent|owned-current)
-        rm -rf "$dest"
-        cp "$f" "$dest"
-        manifest_record "$rel" "vendor-file" "agy-delegation:$base"
-        copied=$((copied + 1))
-        ;;
-      *)
-        echo "  warning: $dest already exists and isn't skilled's own unmodified copy -- skipped." >&2
-        conflicts=$((conflicts + 1))
-        ;;
-    esac
-  done
-  echo "  $target_dir  ($copied $label copied$([ "$conflicts" -gt 0 ] && echo ", $conflicts conflict(s) skipped"))"
-}
-
-remove_agy_dir() {
-  local src_dir="$1" target_dir="$2" label="$3"
-  require_python3
-  [ -d "$target_dir" ] || return 0
-  local removed=0 kept=0
-  for f in "$src_dir"/*.md; do
-    local base dest rel kind status
-    base="$(basename "$f")"
-    dest="$target_dir/$base"
-    [ -e "$dest" ] || [ -L "$dest" ] || continue
-    rel="$(rel_path "$target_dir")/$base"
-    kind="$(manifest_entry_kind "$rel")"
-    if [ -z "$kind" ]; then
-      continue
-    fi
-    status="$(manifest_check "$rel" "$kind")"
-    if [ "$status" = "owned-current" ]; then
-      rm -f "$dest"
-      manifest_remove_entry "$rel"
-      removed=$((removed + 1))
-    else
-      echo "  warning: $dest changed since skilled installed it -- left in place." >&2
-      kept=$((kept + 1))
-    fi
-  done
-  echo "  $target_dir  (removed $removed $label$([ "$kept" -gt 0 ] && echo ", $kept left in place"))"
-}
-
-# Merges agy-delegation/CLAUDE.fragment.md into <project>/CLAUDE.md, using
-# its own distinct markers so it coexists independently of an
-# opencode-delegation block in the same file. Same idempotent
-# create/replace/append logic as merge_claude_md.
-merge_agy_claude_md() {
-  local project="$1"
-  local claude_md="$project/CLAUDE.md"
-  local fragment="$AGY_DIR/CLAUDE.fragment.md"
-  if [ ! -f "$claude_md" ]; then
-    cp "$fragment" "$claude_md"
-    echo "  $claude_md  (created)"
-    return 0
-  fi
-  if grep -qF "$AGY_START_MARKER" "$claude_md"; then
-    awk -v start="$AGY_START_MARKER" -v end="$AGY_END_MARKER" -v fragfile="$fragment" '
-      $0 == start {
-        while ((getline line < fragfile) > 0) print line
-        close(fragfile)
-        skip = 1
-        next
-      }
-      $0 == end { skip = 0; next }
-      skip { next }
-      { print }
-    ' "$claude_md" > "$claude_md.tmp" && mv "$claude_md.tmp" "$claude_md"
-    echo "  $claude_md  (updated existing agy-delegation block)"
-  else
-    { echo; cat "$fragment"; } >> "$claude_md"
-    echo "  $claude_md  (appended)"
-  fi
-}
-
-strip_agy_claude_md_block() {
-  local project="$1"
-  local claude_md="$project/CLAUDE.md"
-  [ -f "$claude_md" ] || return 0
-  grep -qF "$AGY_START_MARKER" "$claude_md" || return 0
-  awk -v start="$AGY_START_MARKER" -v end="$AGY_END_MARKER" '
-    $0 == start { skip = 1; next }
-    $0 == end { skip = 0; next }
-    skip { next }
-    { print }
-  ' "$claude_md" > "$claude_md.tmp" && mv "$claude_md.tmp" "$claude_md"
-  echo "  $claude_md  (removed agy-delegation block)"
-}
-
-ensure_agy_settings_toggle() {
-  local project="$1"
-  local settings_dir="$project/.claude"
-  local settings_file="$settings_dir/settings.json"
-  if ! command -v python3 >/dev/null 2>&1; then
-    echo "  warning: python3 not found, skipped $settings_file (add \"$AGY_SETTINGS_KEY\": false by hand, then flip it to true to enable this add-on)" >&2
-    return 0
-  fi
-  mkdir -p "$settings_dir"
-  python3 - "$settings_file" "$AGY_SETTINGS_KEY" <<'PYEOF'
-import json, os, sys
-
-json_file, key = sys.argv[1], sys.argv[2]
-data = {}
-if os.path.exists(json_file):
-    content = open(json_file).read().strip()
-    if content:
-        data = json.loads(content)
-
-if key not in data:
-    data[key] = False
-    tmp = f"{json_file}.tmp.{os.getpid()}"
-    with open(tmp, "w") as f:
-        json.dump(data, f, indent=2)
-        f.write("\n")
-        f.flush()
-        os.fsync(f.fileno())
-    os.replace(tmp, json_file)
-PYEOF
-  echo "  $settings_file  (ensured \"$AGY_SETTINGS_KEY\": false if not already set)"
-}
-
-remove_agy_settings_toggle() {
-  local project="$1"
-  local settings_file="$project/.claude/settings.json"
-  [ -f "$settings_file" ] || return 0
-  if ! command -v python3 >/dev/null 2>&1; then
-    echo "  warning: python3 not found, left $settings_file untouched" >&2
-    return 0
-  fi
-  python3 - "$settings_file" "$AGY_SETTINGS_KEY" <<'PYEOF'
-import json, os, sys
-
-json_file, key = sys.argv[1], sys.argv[2]
-content = open(json_file).read().strip()
-if not content:
-    sys.exit(0)
-data = json.loads(content)
-if key in data:
-    del data[key]
-    tmp = f"{json_file}.tmp.{os.getpid()}"
-    with open(tmp, "w") as f:
-        json.dump(data, f, indent=2)
-        f.write("\n")
-        f.flush()
-        os.fsync(f.fileno())
-    os.replace(tmp, json_file)
-PYEOF
-  echo "  $settings_file  (removed \"$AGY_SETTINGS_KEY\" key if present)"
-}
-
 # Report nested roots this install did NOT reach: git submodules (a separate
 # repo with its own root -- nothing written at $PROJECT_PATH is visible to a
 # session opened inside one) and monorepo workspace packages (a directory
@@ -1137,17 +630,6 @@ if [ "$MODE" = "uninstall" ]; then
     remove_skills_json_entry "$PROJECT_PATH/.agents" "${KNOWN_PATHS[@]}"
   fi
   [ "$DO_OPENCODE" -eq 1 ] && remove_opencode_config_entry "$PROJECT_PATH" "${KNOWN_PATHS[@]}"
-  if [ "$DO_OD" -eq 1 ]; then
-    remove_od_dir "$OD_COMMANDS_DIR" "$PROJECT_PATH/.claude/commands" "opencode-delegation commands"
-    remove_od_dir "$OD_AGENTS_DIR" "$PROJECT_PATH/.opencode/agent" "opencode-delegation agents"
-    strip_claude_md_block "$PROJECT_PATH"
-    remove_od_settings_toggle "$PROJECT_PATH"
-  fi
-  if [ "$DO_AGY" -eq 1 ]; then
-    remove_agy_dir "$AGY_COMMANDS_DIR" "$PROJECT_PATH/.claude/commands" "agy-delegation commands"
-    strip_agy_claude_md_block "$PROJECT_PATH"
-    remove_agy_settings_toggle "$PROJECT_PATH"
-  fi
   # Tidy up an empty manifest -- harmless to leave, but a project with
   # nothing left installed shouldn't keep a stub metadata file around.
   if [ -f "$PROJECT_PATH/$MANIFEST_FILE" ] && [ "$(python3 -c "import json,sys; print(len(json.load(open(sys.argv[1])).get('entries', {})))" "$PROJECT_PATH/$MANIFEST_FILE" 2>/dev/null)" = "0" ]; then
@@ -1169,26 +651,6 @@ if [ "$DO_ANTIGRAVITY" -eq 1 ]; then
   write_skills_json "$PROJECT_PATH/.agents" "$ANTIGRAVITY_PATH"
 fi
 [ "$DO_OPENCODE" -eq 1 ] && write_opencode_config "$PROJECT_PATH" "$OPENCODE_PATH"
-if [ "$DO_OD" -eq 1 ]; then
-  if [ "$VENDOR" -eq 1 ]; then
-    copy_od_dir "$OD_COMMANDS_DIR" "$PROJECT_PATH/.claude/commands" "opencode-delegation commands"
-    copy_od_dir "$OD_AGENTS_DIR" "$PROJECT_PATH/.opencode/agent" "opencode-delegation agents"
-  else
-    link_od_dir "$OD_COMMANDS_DIR" "$PROJECT_PATH/.claude/commands" "opencode-delegation commands"
-    link_od_dir "$OD_AGENTS_DIR" "$PROJECT_PATH/.opencode/agent" "opencode-delegation agents"
-  fi
-  merge_claude_md "$PROJECT_PATH"
-  ensure_od_settings_toggle "$PROJECT_PATH"
-fi
-if [ "$DO_AGY" -eq 1 ]; then
-  if [ "$VENDOR" -eq 1 ]; then
-    copy_agy_dir "$AGY_COMMANDS_DIR" "$PROJECT_PATH/.claude/commands" "agy-delegation commands"
-  else
-    link_agy_dir "$AGY_COMMANDS_DIR" "$PROJECT_PATH/.claude/commands" "agy-delegation commands"
-  fi
-  merge_agy_claude_md "$PROJECT_PATH"
-  ensure_agy_settings_toggle "$PROJECT_PATH"
-fi
 detect_nested_roots "$PROJECT_PATH"
 
 echo
@@ -1207,25 +669,3 @@ echo
 echo "Note: only Claude Code understands 'disable-model-invocation'. On OpenCode"
 echo "and Antigravity, every skill is model-selectable regardless of that field,"
 echo "since both ignore unrecognized frontmatter keys per the open Agent Skills spec."
-if [ "$DO_OD" -eq 1 ]; then
-  echo
-  echo "opencode-delegation installed but off: \"$OD_SETTINGS_KEY\": false in"
-  echo ".claude/settings.json. Flip it to true to enable it, and make sure the"
-  echo "opencode CLI plus a working model/provider are already set up -- skilled"
-  echo "does not install or configure opencode itself. See README.md."
-  if ! command -v opencode >/dev/null 2>&1; then
-    echo "warning: 'opencode' was not found on PATH just now -- install it before"
-    echo "flipping the flag on, or this add-on has nothing to call."
-  fi
-fi
-if [ "$DO_AGY" -eq 1 ]; then
-  echo
-  echo "agy-delegation installed but off: \"$AGY_SETTINGS_KEY\": false in"
-  echo ".claude/settings.json. Flip it to true to enable it, and make sure the"
-  echo "agy CLI (Google's Antigravity CLI) is already installed and authenticated"
-  echo "-- skilled does not install or configure agy itself. See README.md."
-  if ! command -v agy >/dev/null 2>&1; then
-    echo "warning: 'agy' was not found on PATH just now -- install it before"
-    echo "flipping the flag on, or this add-on has nothing to call."
-  fi
-fi

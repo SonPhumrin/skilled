@@ -80,44 +80,6 @@ python3 tests/validate_skills.py --project /path/to/your-project
 
 Then, inside that project, run `/skilled-setup` once. It writes `CONTEXT.md`, `ARCHITECTURE.md`, and the tracker config the workflow skills read. From there, `/skilled` is the thing to run when you're not sure what to reach for.
 
-### Optional: delegation add-ons (Claude Code only)
-
-Two separate, opt-in add-ons that let Claude Code offload work to a worker instead of doing everything itself, so it spends fewer of its own tokens on the heavy lifting. Neither is an Agent Skill — both are Claude-Code-specific by design, installed and toggled independently of the skills above and of each other.
-
-#### opencode worker-team delegation
-
-Seven Claude Code slash commands (`/oc`, `/ocresearch`, `/ocplan`, `/ocverify`, `/ocreview`, `/ocbug`, `/ocimpl`) that delegate research, implementation, bug-hunting, and verification to an [opencode](https://opencode.ai) worker team.
-
-Prerequisite: the `opencode` CLI, already installed and configured with a working model/provider. `skilled` does not install or configure opencode itself, and ships no API keys or provider config; `install.sh --opencode-delegation` warns if `opencode` isn't found on `PATH`. The bundled worker personas (`researcher`, `implementer`, `verifier`, `bug-catcher`, `bug-reviewer`, `orchestrator`, `architect`) all run on a single configured model — no cross-model fallback chain, no proxy in front of the provider. Every worker with bash access requires explicit approval for destructive commands (`git reset --hard`, `git push --force`, `rm -rf`, etc.) and refuses to read credential-shaped files (`.env`, `*credentials*.json`, `*service-account*.json`, `google*.json`, `.pem`/private keys) — both fail closed rather than hang in a headless run. Configure provider credentials through environment variables or your provider's own credential store rather than committing secrets to JSON.
-
-```bash
-./install.sh /path/to/your-project --opencode-delegation
-```
-
-This installs the slash commands into `.claude/commands/`, the opencode agent personas into `.opencode/agent/`, and merges a policy section into that project's `CLAUDE.md`. It's **off by default** even after installing: each command checks `"skilledOpencodeDelegation"` in that project's `.claude/settings.json` before running, and the installer only ever writes `false` there. Flip it to `true` to turn the add-on on; flip it back to turn it off — no reinstall needed either way.
-
-```bash
-./install.sh /path/to/your-project --uninstall --opencode-delegation   # remove it entirely
-```
-
-#### agy (Antigravity) web-research delegation
-
-One Claude Code slash command (`/agy-research`) that delegates read-only web research — search, URL fetching, browser-driven exploration and testing — to [agy](https://antigravity.google) (Google's Antigravity CLI) running Gemini Flash. Deliberately narrower than opencode-delegation's roster: agy's permission model doesn't support the same per-role technical gating opencode's workers get, so this add-on stays scoped to read-only web research rather than implementation.
-
-Prerequisite: the `agy` CLI, already installed and authenticated. `skilled` does not install or configure agy itself; `install.sh --agy-delegation` warns if `agy` isn't found on `PATH`.
-
-```bash
-./install.sh /path/to/your-project --agy-delegation
-```
-
-Same shape as opencode-delegation: installs the slash command into `.claude/commands/` and merges a policy section into `CLAUDE.md`, gated off by default via `"skilledAgyDelegation"` in `.claude/settings.json`.
-
-```bash
-./install.sh /path/to/your-project --uninstall --agy-delegation   # remove it entirely
-```
-
-With both add-ons enabled in the same project, Claude Code routes each task to whichever lane actually fits it — opencode for codebase research/implementation/verification, agy for live web research — rather than defaulting to one or forcing a task through the wrong tool.
-
 ## Supported harnesses
 
 Every skill here is a plain `SKILL.md` under the open [Agent Skills](https://agentskills.io) standard, so nothing is Claude-specific by construction.
