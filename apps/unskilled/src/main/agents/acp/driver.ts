@@ -1,7 +1,7 @@
 import type { ModelOption, PermissionDecision, PermissionMode } from "../../../shared/types";
 import { summarizeToolResult } from "../summarize";
 import type { AgentDriver, TurnInput } from "../types";
-import { AcpConnection, RpcError } from "./connection";
+import { RpcError, StdioRpc } from "../rpc";
 
 /** An ACP agent the app can drive: deepseek-harness, Cursor, or any agent that speaks ACP over stdio. */
 export interface AcpAgentConfig {
@@ -89,7 +89,7 @@ function modelsFrom(options: ConfigOption[] | null | undefined): ModelOption[] |
 }
 
 interface Live {
-  conn: AcpConnection;
+  conn: StdioRpc;
   init: InitializeResult;
   sessionId: string | null;
   configOptions: ConfigOption[];
@@ -196,7 +196,7 @@ export function createAcpDriver(
     if (config.skillsDirEnv && deps.skillsDir) env[config.skillsDirEnv] = deps.skillsDir();
     // eslint-disable-next-line prefer-const
     let l: Live;
-    const conn = AcpConnection.spawn(config.command, config.args, { cwd: input.cwd, env }, {
+    const conn = StdioRpc.spawn(config.command, config.args, { cwd: input.cwd, env }, {
       onNotification: (method, params) => {
         if (method === "session/update") onUpdate(l, (params as { update: SessionUpdate }).update);
       },

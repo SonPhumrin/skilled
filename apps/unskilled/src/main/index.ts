@@ -6,7 +6,8 @@ import type { LiveUpdate, PermissionDecision, SendRequest, Thread } from "../sha
 import { spawnSync } from "node:child_process";
 import { createAcpDriver } from "./agents/acp/driver";
 import { createClaudeDriver, resolvePackagedClaudeBinary } from "./agents/claude";
-import { loadAcpAgents } from "./agents/registry";
+import { createCodexDriver } from "./agents/codex";
+import { loadAcpAgents, onPath } from "./agents/registry";
 import { BrowserController, isAllowedUrl } from "./browser/controller";
 import { browserTools } from "./browser/tools";
 import { Store } from "./db";
@@ -107,6 +108,10 @@ async function main(): Promise<void> {
   const getToolServer = () => (toolServer ??= startToolServer(enabledTools));
   const drivers = [
     driver,
+    // Codex when it's installed; it registers the same model-invoked skills as an extra skills root.
+    ...(onPath("codex")
+      ? [createCodexDriver({ command: "codex", args: ["app-server"], clientVersion: app.getVersion(), skillsDir: () => ensureModelSkillsDir(catalog, modelSkillsDir) })]
+      : []),
     ...acpAgents.map((config) =>
       createAcpDriver(config, {
         skillsDir: () => ensureModelSkillsDir(catalog, modelSkillsDir),

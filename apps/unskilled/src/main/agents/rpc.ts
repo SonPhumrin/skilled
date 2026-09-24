@@ -1,10 +1,10 @@
 import { type ChildProcess, spawn } from "node:child_process";
 
 /**
- * JSON-RPC 2.0 over an agent's stdio, one JSON message per line: the Agent
- * Client Protocol's transport (agentclientprotocol.com). Requests the agent
- * sends us (permission prompts) go to `onRequest`; notifications
- * (session/update) go to `onNotification`.
+ * JSON-RPC 2.0 over an agent's stdio, one JSON message per line: the
+ * transport of both the Agent Client Protocol and Codex's app-server.
+ * Requests the agent sends us (permission prompts) go to `onRequest`;
+ * notifications go to `onNotification`.
  */
 
 type Json = null | boolean | number | string | Json[] | { [k: string]: Json | undefined };
@@ -19,13 +19,13 @@ export class RpcError extends Error {
   }
 }
 
-export interface AcpHandlers {
+export interface RpcHandlers {
   onRequest(method: string, params: unknown): Promise<unknown>;
   onNotification(method: string, params: unknown): void;
   onExit?(code: number | null, stderrTail: string): void;
 }
 
-export class AcpConnection {
+export class StdioRpc {
   private nextId = 1;
   private pending = new Map<number, { resolve: (v: unknown) => void; reject: (e: Error) => void }>();
   private buffer = "";
@@ -34,7 +34,7 @@ export class AcpConnection {
 
   private constructor(
     private child: ChildProcess,
-    private handlers: AcpHandlers,
+    private handlers: RpcHandlers,
   ) {
     child.stdout!.setEncoding("utf-8");
     child.stdout!.on("data", (chunk: string) => this.onData(chunk));
@@ -49,7 +49,7 @@ export class AcpConnection {
     });
   }
 
-  static spawn(command: string, args: string[], opts: { cwd: string; env: NodeJS.ProcessEnv }, handlers: AcpHandlers): AcpConnection {
+  static spawn(command: string, args: string[], opts: { cwd: string; env: NodeJS.ProcessEnv }, handlers: RpcHandlers): StdioRpc {
     const child = spawn(command, args, {
       cwd: opts.cwd,
       env: opts.env,
@@ -60,7 +60,7 @@ export class AcpConnection {
       shell: process.platform === "win32" && !/[\\/]/.test(command),
       windowsHide: true,
     });
-    return new AcpConnection(child, handlers);
+    return new StdioRpc(child, handlers);
   }
 
   get alive(): boolean {

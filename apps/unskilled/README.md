@@ -17,6 +17,7 @@ The app follows the contract in [HARNESS.md](../../HARNESS.md):
 Every thread runs one agent, picked in the header. Switching agents starts a fresh conversation, because sessions don't carry across agents.
 
 - **Claude** (always there) uses the Claude Agent SDK. It gets skilled's model-invoked skills as a plugin, plus the browser tools.
+- **Codex** appears when `codex` is on your PATH. It runs as `codex app-server`, one process for all threads, and resumes threads from Codex's own history. It uses your Codex login. skilled's model-invoked skills reach it as an extra skills root, and Ask / Auto-edit / Full map onto Codex's approval policy and sandbox (`untrusted` / `on-request` / `never`, with `workspace-write`, or full access in Full).
 - **Any agent that speaks ACP** (the [Agent Client Protocol](https://agentclientprotocol.com)) goes through one generic driver. Each thread keeps its agent process alive between turns and resumes the stored session after a restart when the agent supports it. Models come from the agent's own `model` config option.
   - **DeepSeek** appears when `dsh` ([deepseek-harness](https://github.com/deepseek-ai/deepseek-harness), `npm i -g @deepseek-ai/dsh`) is on your PATH. It runs as `dsh --profile acp` and uses your dsh configuration and `DEEPSEEK_API_KEY`. skilled's model-invoked skills reach it through `DSH_BUNDLED_SKILL_DIR`, so nothing is written into your project.
   - **Cursor** appears when `cursor-agent` is on your PATH.
@@ -67,7 +68,7 @@ CI runs typecheck, tests, packaging, and a smoke test of the packaged app on all
 | :--- | :--- |
 | `src/main/index.ts` | Electron entry point: window, IPC, smoke mode |
 | `src/main/service.ts` | Everything the UI can ask for. No Electron imports, so it runs in tests |
-| `src/main/agents/` | The `AgentDriver` interface, the Claude driver (Agent SDK), the ACP driver (`acp/`), and the agent registry |
+| `src/main/agents/` | The `AgentDriver` interface; the Claude (Agent SDK), Codex (app-server), and ACP drivers; the shared stdio JSON-RPC transport; and the agent registry |
 | `src/main/skills/` | Reading `skills.json`, generating the plugin, composing prompts |
 | `src/main/db.ts` | SQLite store (`node:sqlite`): projects, threads, events |
 | `src/main/git.ts` | Working-tree diff for the Changes panel |
@@ -84,5 +85,5 @@ Electron 44 (the same Chromium on every OS, which the built-in browser needs), R
 
 ## Roadmap
 
-- **Milestone 2:** ~~the built-in browser pane~~, ~~the generic ACP driver~~, and ~~browser tools for ACP agents~~, and ~~the element picker~~ (done). Still to come: Codex (app-server) and a terminal tab.
+- **Milestone 2:** ~~the built-in browser pane~~, ~~the generic ACP driver~~, and ~~browser tools for ACP agents~~, ~~the element picker~~, and ~~Codex~~ (done). Still to come: a terminal tab, and browser tools for Codex.
 - **Milestone 3:** code signing and notarization, auto-update, and a per-thread view of token usage.
