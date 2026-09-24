@@ -1,4 +1,5 @@
-import type { ModelOption, PermissionDecision, PermissionMode } from "../../shared/types";
+import type { McpServerEntry, ModelOption, PermissionDecision, PermissionMode } from "../../shared/types";
+import { forCodex } from "../mcp/servers";
 import { RpcError, StdioRpc } from "./rpc";
 import { codexLimitsPatch, type CodexRateLimits, type LimitsListener } from "./limits";
 import { summarizeToolInput, summarizeToolResult } from "./summarize";
@@ -68,22 +69,28 @@ export function codexDecision(d: PermissionDecision): "accept" | "acceptForSessi
 }
 
 /**
- * The thread config that attaches the harness's tools: Codex's
- * `mcp_servers` entry for the local tool server. Safe tools run without
- * asking; the rest ask in Ask mode, through an MCP elicitation.
+ * The thread config that attaches MCP servers: the user's (mcp.json) and,
+ * once the browser is open, the harness's own tool server. Safe harness
+ * tools run without asking; the rest ask in Ask mode, through an MCP
+ * elicitation. Returns undefined when there's nothing to attach.
  */
-export function codexToolConfig(server: { url: string; token: string }, tools: HarnessTool[], mode: PermissionMode): Record<string, unknown> {
-  const ask = tools.filter((t) => !t.autoAllow && mode === "ask");
-  return {
-    mcp_servers: {
-      [CODEX_TOOL_SERVER]: {
-        url: server.url,
-        http_headers: { Authorization: `Bearer ${server.token}` },
-        default_tools_approval_mode: "approve",
-        tools: Object.fromEntries(ask.map((t) => [t.name, { approval_mode: "prompt" }])),
-      },
-    },
-  };
+export function codexToolConfig(
+  server: { url: string; token: string } | null,
+  tools: HarnessTool[],
+  mode: PermissionMode,
+  userServers: McpServerEntry[] = [],
+): Record<string, unknown> | undefined {
+  const mcp: Record<string, unknown> = forCodex(userServers);
+  if (server && tools.length) {
+    const ask = tools.filter((t) => !t.autoAllow && mode === "ask");
+    mcp[CODEX_TOOL_SERVER] = {
+      url: server.url,
+      http_headers: { Authorization: `Bearer ${server.token}` },
+      default_tools_approval_mode: "approve",
+      tools: Object.fromEntries(ask.map((t) => [t.name, { approval_mode: "prompt" }])),
+    };
+  }
+  return Object.keys(mcp).length ? { mcp_servers: mcp } : undefined;
 }
 
 interface Elicitation {
@@ -113,8 +120,8 @@ export function createCodexDriver(config: CodexConfig): AgentDriver {
   let ready: Promise<void> | null = null;
   let models: ModelOption[] = [];
   const turns = new Map<string, TurnState>(); // by Codex thread id
-  /** Threads loaded in the running app-server, and whether they have the harness's tools. */
-  const loaded = new Map<string, boolean>();
+  /** Threads loaded in the running app-server, and the MCP config they were loaded with. */
+  const loaded = new Map<string, string>();
   /** MCP tools the user chose "always allow" for, by thread. */
   const alwaysAllowed = new Map<string, Set<string>>();
 
@@ -282,13 +289,15 @@ export function createCodexDriver(config: CodexConfig): AgentDriver {
         await start(input.cwd);
         const conn = rpc!;
         const withTools = input.tools.length > 0 && Boolean(config.toolServer);
-        const threadConfig = withTools ? codexToolConfig(await config.toolServer!(), input.tools, input.permissionMode) : undefined;
+        const threadConfig = codexToolConfig(withTools ? await config.toolServer!() : null, input.tools, input.permissionMode, input.mcpServers);
+        const signature = JSON.stringify(threadConfig ?? null);
         threadId = "";
         if (input.sessionId) {
-          // Tools became available mid-conversation (the user opened the
-          // browser): unload the thread so the resume below loads it again
-          // with the tool server in its config.
-          if (withTools && loaded.get(input.sessionId) === false) {
+          // The MCP servers changed mid-conversation (the user opened the
+          // browser, or edited their servers): unload the thread so the
+          // resume below loads it again with the new config.
+          const was = loaded.get(input.sessionId);
+          if (was !== undefined && was !== signature) {
             await conn.request("thread/unsubscribe", { threadId: input.sessionId }).catch(() => {});
             loaded.delete(input.sessionId);
           }
@@ -310,8 +319,8 @@ export function createCodexDriver(config: CodexConfig): AgentDriver {
           const res = await conn.request<{ thread: { id: string } }>("thread/start", { cwd: input.cwd, model, ...policy, config: threadConfig });
           threadId = res.thread.id;
         }
-        // A resume of a thread that's already loaded keeps its tools, so only a first load decides.
-        if (!loaded.has(threadId)) loaded.set(threadId, withTools);
+        // A resume of a thread that's already loaded keeps its config, so only a first load decides.
+        if (!loaded.has(threadId)) loaded.set(threadId, signature);
         input.onSession(threadId);
       } catch (err) {
         input.onEvent({ kind: "error", message: `Codex failed to start: ${err instanceof Error ? err.message : String(err)}` });

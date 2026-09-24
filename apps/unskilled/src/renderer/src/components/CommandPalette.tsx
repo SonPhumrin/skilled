@@ -48,6 +48,9 @@ function Palette() {
 
     if (selectedProjectId) action("new-thread", "New Thread", () => void s.newThread(), { shortcut: key("N") });
     action("add-project", "Add Project…", () => void s.addProject(), { keywords: "open folder" });
+    action("library-skills", "Library: Skills", () => useStore.setState({ libraryTab: "skills" }), { shortcut: mac ? "⌘⇧L" : "Ctrl+Shift+L", keywords: "plugins browse skilled" });
+    action("library-mcp", "Library: MCP Servers", () => useStore.setState({ libraryTab: "mcp" }), { keywords: "mcp tools add server" });
+    action("library-agents", "Library: Agents", () => useStore.setState({ libraryTab: "agents" }), { keywords: "install gemini opencode codex" });
     action("settings", "Settings…", () => s.setSettingsOpen(true), { shortcut: key(","), keywords: "preferences api keys" });
     if (selectedProjectId) action("changes", "Show Changes", () => s.showInspector("changes"), { shortcut: mac ? "⌘⇧D" : "Ctrl+Shift+D", keywords: "diff git" });
     action("browser", "Show Browser", () => s.showInspector("browser"), { shortcut: mac ? "⌘⇧B" : "Ctrl+Shift+B", keywords: "web page preview" });

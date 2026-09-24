@@ -18,13 +18,15 @@ import { catalog, closeAfter } from "./helpers";
 // in limits.test.ts, from the event this fake produced under such a login.
 function fakeAnthropic() {
   const requests: string[] = [];
+  const toolNames: string[][] = [];
   const server = createServer((req, res) => {
     let body = "";
     req.on("data", (c) => (body += c));
     req.on("end", () => {
       requests.push(`${req.method} ${req.url?.split("?")[0]}`);
       if (!req.url?.startsWith("/v1/messages")) return void res.writeHead(404, { "content-type": "application/json" }).end("{}");
-      const { model, stream } = JSON.parse(body) as { model: string; stream?: boolean };
+      const { model, stream, tools } = JSON.parse(body) as { model: string; stream?: boolean; tools?: { name: string }[] };
+      if (stream) toolNames.push((tools ?? []).map((t) => t.name));
       const usage = { input_tokens: 10, output_tokens: 3 };
       if (!stream) {
         res.writeHead(200, { "content-type": "application/json" });
@@ -52,7 +54,7 @@ function fakeAnthropic() {
       );
     });
   });
-  return { server, requests };
+  return { server, requests, toolNames };
 }
 
 function setEnv(vars: Record<string, string | undefined>) {
@@ -71,7 +73,7 @@ function setEnv(vars: Record<string, string | undefined>) {
 
 describe("Claude end to end (real Claude Code, fake API)", () => {
   it("runs a turn, and an API-key session reports no plan limits", async () => {
-    const { server, requests } = fakeAnthropic();
+    const { server, requests, toolNames } = fakeAnthropic();
     await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
     closeAfter(() => void server.close());
     // The driver's agent inherits process.env: drop any Claude Code session
@@ -104,6 +106,8 @@ describe("Claude end to end (real Claude Code, fake API)", () => {
       permissionMode: "ask",
       signal: new AbortController().signal,
       tools: [],
+      // A user MCP server (mcp.json): its tool has to reach the model.
+      mcpServers: [{ name: "docs", enabled: true, spec: { type: "stdio", command: process.execPath, args: [join(__dirname, "fixtures", "mock-mcp-stdio.mjs")] } }],
       onEvent: (e) => events.push(e),
       onTextDelta: (d) => (text += d),
       onSession: () => {},
@@ -115,6 +119,7 @@ describe("Claude end to end (real Claude Code, fake API)", () => {
     expect(events.find((e) => e.kind === "assistant-text")).toMatchObject({ text: "Hello." });
     expect(events.at(-1)).toMatchObject({ kind: "turn-end", outputTokens: 3 });
     expect(limits).toEqual([]);
+    expect(toolNames.flat()).toContain("mcp__docs__whoami");
     // The turn's model calls, and nothing that asks for usage or limits.
     expect(requests).toContain("POST /v1/messages");
     expect(requests.filter((r) => /usage|rate.?limit|quota/i.test(r))).toEqual([]);

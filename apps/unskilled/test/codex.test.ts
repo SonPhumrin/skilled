@@ -32,6 +32,7 @@ function turn(prompt: string, over: Partial<TurnInput> = {}) {
     permissionMode: "ask",
     signal: controller.signal,
     tools: [],
+    mcpServers: [],
     onEvent: (e) => events.push(e),
     onTextDelta: (t) => deltas.push(t),
     onSession: (s) => sessions.push(s),
@@ -179,6 +180,21 @@ describe("codexToolConfig", () => {
         },
       },
     });
-    expect((codexToolConfig(server, [safe, risky], "full").mcp_servers as Record<string, { tools: object }>).unskilled!.tools).toEqual({});
+    expect((codexToolConfig(server, [safe, risky], "full")!.mcp_servers as Record<string, { tools: object }>).unskilled!.tools).toEqual({});
+  });
+
+  it("adds the user's servers, and is empty with nothing to attach", () => {
+    expect(codexToolConfig(null, [], "ask")).toBeUndefined();
+    expect(
+      codexToolConfig(null, [], "ask", [
+        { name: "docs", enabled: true, spec: { type: "stdio", command: "npx", args: ["-y", "docs-mcp"], env: { TOKEN: "t" } } },
+        { name: "remote", enabled: true, spec: { type: "http", url: "https://mcp.example.com/mcp", headers: { Authorization: "Bearer x" } } },
+      ]),
+    ).toEqual({
+      mcp_servers: {
+        docs: { command: "npx", args: ["-y", "docs-mcp"], env: { TOKEN: "t" } },
+        remote: { url: "https://mcp.example.com/mcp", http_headers: { Authorization: "Bearer x" } },
+      },
+    });
   });
 });

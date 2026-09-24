@@ -13,6 +13,8 @@ import type {
 } from "../../shared/types";
 import { api } from "./api";
 
+export type LibraryTab = "skills" | "mcp" | "agents";
+
 interface State {
   projects: Project[];
   threads: Record<string, Thread[]>; // by project id
@@ -26,6 +28,10 @@ interface State {
   limits: Record<string, AgentLimits>;
   paletteOpen: boolean;
   setPaletteOpen(open: boolean): void;
+  /** The Library sheet's tab, or null when it's closed. */
+  libraryTab: LibraryTab | null;
+  /** A skill for the Library to show first. */
+  librarySkill: string | null;
   /** The agent new threads start with: the last one picked. */
   lastAgent: string | null;
   selectedProjectId: string | null;
@@ -98,6 +104,8 @@ export const useStore = create<State>((set, get) => ({
   appUpdate: null,
   limits: {},
   paletteOpen: false,
+  libraryTab: null,
+  librarySkill: null,
   setPaletteOpen(open) {
     set({ paletteOpen: open });
   },

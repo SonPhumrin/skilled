@@ -2,7 +2,8 @@ import { existsSync } from "node:fs";
 import { createRequire } from "node:module";
 import { createSdkMcpServer, query, tool } from "@anthropic-ai/claude-agent-sdk";
 import type { HookCallback, Options, PermissionResult, SDKMessage } from "@anthropic-ai/claude-agent-sdk";
-import type { ModelOption, PermissionMode } from "../../shared/types";
+import type { McpServerEntry, ModelOption, PermissionMode } from "../../shared/types";
+import { forClaude } from "../mcp/servers";
 import { checkCommand } from "../guard";
 import { PLUGIN_NAME } from "../skills/plugin";
 import { claudeLimitsPatch, type LimitsListener } from "./limits";
@@ -32,6 +33,12 @@ export function harnessToolOptions(tools: HarnessTool[]): Pick<Options, "mcpServ
     mcpServers: { [TOOL_SERVER]: server },
     allowedTools: tools.filter((t) => t.autoAllow).map((t) => `mcp__${TOOL_SERVER}__${t.name}`),
   };
+}
+
+/** The user's MCP servers next to the harness's own; Claude also keeps the ones in its own config. */
+function withUserServers(opts: Pick<Options, "mcpServers" | "allowedTools">, servers: McpServerEntry[]): Pick<Options, "mcpServers" | "allowedTools"> {
+  if (!servers.length) return opts;
+  return { ...opts, mcpServers: { ...(forClaude(servers) as NonNullable<Options["mcpServers"]>), ...opts.mcpServers } };
 }
 
 const MODELS: ModelOption[] = [
@@ -128,7 +135,7 @@ export function createClaudeDriver(config: ClaudeDriverConfig): AgentDriver {
         allowDangerouslySkipPermissions: input.permissionMode === "full",
         includePartialMessages: true,
         plugins: [{ type: "local", path: config.pluginDir() }],
-        ...harnessToolOptions(input.tools),
+        ...withUserServers(harnessToolOptions(input.tools), input.mcpServers),
         hooks: { PreToolUse: [{ matcher: "Bash", hooks: [guard] }] },
         canUseTool: async (toolName, toolInput, { suggestions }): Promise<PermissionResult> => {
           const decision = await input.requestPermission({

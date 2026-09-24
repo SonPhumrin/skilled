@@ -36,6 +36,82 @@ export interface Settings {
   autoUpdate: boolean;
 }
 
+/** How to start an MCP server: a local command, or a URL (Streamable HTTP). */
+export type McpServerSpec =
+  | { type: "stdio"; command: string; args?: string[]; env?: Record<string, string> }
+  | { type: "http"; url: string; headers?: Record<string, string> };
+
+/** An MCP server the app passes to every agent (mcp.json in the data folder). */
+export interface McpServerEntry {
+  name: string;
+  spec: McpServerSpec;
+  enabled: boolean;
+}
+
+/** An MCP server as the window sees it: env and header values never leave the main process. */
+export interface McpServerView {
+  name: string;
+  enabled: boolean;
+  type: McpServerSpec["type"];
+  /** The command line or URL. */
+  target: string;
+  envKeys: string[];
+  headerKeys: string[];
+}
+
+/** A server an agent loads from its own config, shown read-only. */
+export interface ExternalMcpServer {
+  name: string;
+  type: "stdio" | "http" | "sse" | "unknown";
+  target: string;
+  /** Which agent loads it, and from where. */
+  agent: string;
+  source: string;
+}
+
+export interface McpOverview {
+  /** The app's own tools (the browser pane's), served to agents as the "unskilled" server. */
+  builtIn: { name: string; active: boolean; tools: { name: string; description: string; autoAllow: boolean }[] };
+  servers: McpServerView[];
+  external: ExternalMcpServer[];
+  file: string;
+}
+
+export interface McpTestResult {
+  ok: boolean;
+  tools: { name: string; description: string }[];
+  error?: string;
+}
+
+/** Everything the Library shows about one skill. */
+export interface SkillDetail {
+  skill: SkillEntry;
+  /** SKILL.md without its frontmatter. */
+  body: string;
+  dir: string;
+  /** Skills that call this one. */
+  calledBy: string[];
+  /** How the skill reaches each available agent. */
+  routes: { agent: string; how: string }[];
+}
+
+/** An agent the app knows, installed or not. */
+export interface AgentCatalogEntry {
+  id: string;
+  label: string;
+  kind: "agent-sdk" | "app-server" | "acp";
+  /** The command line the app runs, or null for the in-process SDK. */
+  command: string | null;
+  installed: boolean;
+  source: "built-in" | "agents.json";
+  install?: string;
+  homepage?: string;
+  /** How skilled's model-invoked skills reach it. */
+  skills: string;
+  /** How MCP servers (the app's and the browser tools) reach it. */
+  mcp: string;
+}
+
 /** One plan rate-limit window, e.g. Claude's 5-hour or Codex's weekly limit. */
 export interface LimitWindow {
   id: string;
@@ -208,6 +284,17 @@ export interface UnskilledApi {
   updateStatus(): Promise<AppUpdateStatus>;
   /** Rate limits reported so far, by agent. */
   listLimits(): Promise<AgentLimits[]>;
+  /** Every skill in the catalog, both halves. */
+  listAllSkills(): Promise<SkillEntry[]>;
+  getSkillDetail(name: string): Promise<SkillDetail>;
+  listAgentCatalog(): Promise<AgentCatalogEntry[]>;
+  getMcp(projectId: string | null): Promise<McpOverview>;
+  /** Add or replace a server. Env or header values left empty keep what was stored. */
+  saveMcpServer(entry: McpServerEntry, previousName?: string): Promise<McpOverview>;
+  removeMcpServer(name: string): Promise<McpOverview>;
+  setMcpServerEnabled(name: string, enabled: boolean): Promise<McpOverview>;
+  testMcpServer(name: string): Promise<McpTestResult>;
+  revealPath(path: string): Promise<void>;
   /** Quit and install the downloaded update. */
   installUpdate(): Promise<void>;
   onUpdate(listener: (update: LiveUpdate) => void): () => void;

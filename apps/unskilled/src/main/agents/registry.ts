@@ -15,8 +15,37 @@ export const ACP_PRESETS: AcpAgentConfig[] = [
     // deepseek-harness loads extra skills from this directory
     // (packages/skill/skill-filesystem: DSH_BUNDLED_SKILL_DIR).
     skillsDirEnv: "DSH_BUNDLED_SKILL_DIR",
+    install: "npm install -g @deepseek-ai/dsh",
+    homepage: "https://github.com/deepseek-ai/deepseek-harness",
   },
-  { id: "cursor", label: "Cursor", command: "cursor-agent", args: ["acp"] },
+  {
+    // `--acp` replaced the deprecated `--experimental-acp`. Gemini reads
+    // skills from .agents/skills and ~/.agents/skills; it has no setting
+    // for an extra directory, so skilled's model skills need install.py.
+    id: "gemini",
+    label: "Gemini",
+    command: "gemini",
+    args: ["--acp"],
+    install: "npm install -g @google/gemini-cli",
+    homepage: "https://geminicli.com/docs/cli/acp-mode/",
+  },
+  {
+    // Reads skills from .opencode/skills, .claude/skills, and .agents/skills.
+    id: "opencode",
+    label: "OpenCode",
+    command: "opencode",
+    args: ["acp"],
+    install: "npm install -g opencode-ai",
+    homepage: "https://opencode.ai/docs/acp/",
+  },
+  {
+    id: "cursor",
+    label: "Cursor",
+    command: "cursor-agent",
+    args: ["acp"],
+    install: "curl https://cursor.com/install -fsS | bash",
+    homepage: "https://cursor.com/cli",
+  },
 ];
 
 /** True when `command` resolves on PATH (with PATHEXT on Windows), or is an existing path. */
@@ -44,11 +73,13 @@ function isConfig(v: unknown): v is AcpAgentConfig {
 
 /**
  * Installed presets, then the user's own agents from agents.json:
- *   { "agents": [{ "id": "gemini", "label": "Gemini", "command": "gemini", "args": ["--experimental-acp"] }] }
+ *   { "agents": [{ "id": "qwen", "label": "Qwen Code", "command": "qwen", "args": ["--acp"] }] }
  * A user entry with a preset's id replaces the preset.
  */
 export function loadAcpAgents(configFile: string, isInstalled: (cmd: string) => boolean = (c) => onPath(c)): {
   agents: AcpAgentConfig[];
+  /** agents.json's valid entries, installed or not. */
+  custom: AcpAgentConfig[];
   problems: string[];
 } {
   const problems: string[] = [];
@@ -67,5 +98,5 @@ export function loadAcpAgents(configFile: string, isInstalled: (cmd: string) => 
   }
   const customIds = new Set(custom.map((a) => a.id));
   const presets = ACP_PRESETS.filter((p) => !customIds.has(p.id) && isInstalled(p.command));
-  return { agents: [...presets, ...custom.filter((a) => a.id !== "claude")], problems };
+  return { agents: [...presets, ...custom.filter((a) => a.id !== "claude")], custom, problems };
 }

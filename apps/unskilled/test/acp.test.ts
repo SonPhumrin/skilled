@@ -33,6 +33,7 @@ function turn(prompt: string, over: Partial<TurnInput> = {}) {
     permissionMode: "ask" as PermissionMode,
     signal: controller.signal,
     tools: [],
+    mcpServers: [],
     onEvent: (e) => events.push(e),
     onTextDelta: (t) => deltas.push(t),
     onSession: (s) => sessions.push(s),
@@ -120,6 +121,19 @@ describe("ACP driver", () => {
     expect(after.deltas.join("")).toBe('[["http","unskilled","http://127.0.0.1:9/mcp"]]');
   });
 
+  it("passes the user's MCP servers, and reopens the session when they change", async () => {
+    const d = driver();
+    const docs = { name: "docs", enabled: true, spec: { type: "stdio" as const, command: "docs-mcp", args: ["--stdio"] } };
+    const remote = { name: "remote", enabled: true, spec: { type: "http" as const, url: "https://mcp.example.com/mcp" } };
+    const first = turn("mcp", { mcpServers: [docs] });
+    await d.runTurn(first.input);
+    // stdio servers have no type field in ACP.
+    expect(first.deltas.join("")).toBe('[[null,"docs",null]]');
+    const second = turn("mcp", { sessionId: first.sessions[0]!, mcpServers: [docs, remote] });
+    await d.runTurn(second.input);
+    expect(second.deltas.join("")).toBe('[[null,"docs",null],["http","remote","https://mcp.example.com/mcp"]]');
+  });
+
   it("cancels a running turn", async () => {
     const d = driver();
     const t = turn("slow");
@@ -162,11 +176,20 @@ describe("agent registry", () => {
   it("offers installed presets plus agents.json entries", () => {
     const dir = tempDir();
     const file = join(dir, "agents.json");
-    writeFileSync(file, JSON.stringify({ agents: [{ id: "gemini", label: "Gemini", command: "gemini", args: ["--experimental-acp"] }, { id: "bad" }] }));
-    const { agents, problems } = loadAcpAgents(file, (cmd) => cmd === "dsh");
-    expect(agents.map((a) => a.id)).toEqual(["deepseek", "gemini"]);
+    writeFileSync(file, JSON.stringify({ agents: [{ id: "qwen", label: "Qwen Code", command: "qwen", args: ["--acp"] }, { id: "bad" }] }));
+    const { agents, problems } = loadAcpAgents(file, (cmd) => cmd === "dsh" || cmd === "opencode");
+    expect(agents.map((a) => a.id)).toEqual(["deepseek", "opencode", "qwen"]);
     expect(agents[0]).toMatchObject({ skillsDirEnv: "DSH_BUNDLED_SKILL_DIR" });
+    expect(agents[1]).toMatchObject({ command: "opencode", args: ["acp"] });
     expect(problems).toHaveLength(1);
+  });
+
+  it("starts Gemini with --acp, and lets agents.json replace a preset", () => {
+    const dir = tempDir();
+    const file = join(dir, "agents.json");
+    expect(loadAcpAgents(file, (cmd) => cmd === "gemini").agents).toEqual([expect.objectContaining({ id: "gemini", args: ["--acp"] })]);
+    writeFileSync(file, JSON.stringify({ agents: [{ id: "gemini", label: "Gemini (old)", command: "gemini", args: ["--experimental-acp"] }] }));
+    expect(loadAcpAgents(file, (cmd) => cmd === "gemini").agents).toEqual([expect.objectContaining({ label: "Gemini (old)", args: ["--experimental-acp"] })]);
   });
 
   it("finds commands on PATH", () => {

@@ -1,6 +1,7 @@
 import type { ModelOption, PermissionDecision, PermissionMode } from "../../../shared/types";
 import { summarizeToolResult } from "../summarize";
 import type { AgentDriver, TurnInput } from "../types";
+import { forAcp } from "../../mcp/servers";
 import { RpcError, StdioRpc } from "../rpc";
 
 /** An ACP agent the app can drive: deepseek-harness, Cursor, or any agent that speaks ACP over stdio. */
@@ -16,6 +17,9 @@ export interface AcpAgentConfig {
    * load them without anything written into the project.
    */
   skillsDirEnv?: string;
+  /** How to install the agent, shown in the Library when it isn't installed. */
+  install?: string;
+  homepage?: string;
 }
 
 // The slices of the ACP schema this driver reads (protocol version 1).
@@ -94,7 +98,8 @@ interface Live {
   sessionId: string | null;
   configOptions: ConfigOption[];
   /** Whether this session was opened with the harness's tool server attached. */
-  withTools: boolean;
+  /** The MCP servers the session was opened with, to notice when they change. */
+  mcpSignature: string;
   /** The turn currently receiving this connection's updates. */
   turn: TurnState | null;
   idleTimer?: NodeJS.Timeout;
@@ -228,7 +233,7 @@ export function createAcpDriver(
       clientCapabilities: { fs: { readTextFile: false, writeTextFile: false }, terminal: false },
       clientInfo: { name: "unskilled", version: deps.clientVersion },
     });
-    l = { conn, init, sessionId: null, configOptions: [], withTools: false, turn: null };
+    l = { conn, init, sessionId: null, configOptions: [], mcpSignature: "[]", turn: null };
     const auth = init.authMethods?.[0];
     if (auth) await conn.request("authenticate", { methodId: auth.id }).catch(() => {});
     live.set(threadKey, l);
@@ -236,26 +241,31 @@ export function createAcpDriver(
   };
 
   const mcpServersFor = async (l: Live, input: TurnInput) => {
-    if (!input.tools.length || !deps.toolServer || !l.init.agentCapabilities?.mcpCapabilities?.http) return [];
-    const { url, token } = await deps.toolServer();
-    return [{ type: "http", name: "unskilled", url, headers: [{ name: "Authorization", value: `Bearer ${token}` }] }];
+    const http = Boolean(l.init.agentCapabilities?.mcpCapabilities?.http);
+    const servers: unknown[] = forAcp(input.mcpServers, http);
+    if (input.tools.length && deps.toolServer && http) {
+      const { url, token } = await deps.toolServer();
+      servers.push({ type: "http", name: "unskilled", url, headers: [{ name: "Authorization", value: `Bearer ${token}` }] });
+    }
+    return servers;
   };
 
   const openSession = async (l: Live, input: TurnInput) => {
     const caps = l.init.agentCapabilities;
     const mcpServers = await mcpServersFor(l, input);
+    const signature = JSON.stringify(mcpServers);
     if (l.sessionId) {
-      // Tools became available mid-conversation (the user opened the
-      // browser): reopen the same session with the tool server attached.
-      if (!mcpServers.length || l.withTools || !caps?.sessionCapabilities?.resume || !caps.sessionCapabilities.close) return;
+      // The MCP servers changed mid-conversation (the user opened the
+      // browser, or edited their servers): reopen the same session with them.
+      if (signature === l.mcpSignature || !caps?.sessionCapabilities?.resume || !caps.sessionCapabilities.close) return;
       await l.conn.request("session/close", { sessionId: l.sessionId }).catch(() => {});
       const res = await l.conn.request<{ configOptions?: ConfigOption[] }>("session/resume", { cwd: input.cwd, mcpServers, sessionId: l.sessionId });
       if (res?.configOptions) l.configOptions = res.configOptions;
-      l.withTools = true;
+      l.mcpSignature = signature;
       return;
     }
     const params = { cwd: input.cwd, mcpServers };
-    l.withTools = mcpServers.length > 0;
+    l.mcpSignature = signature;
     if (input.sessionId && caps?.sessionCapabilities?.resume) {
       try {
         const res = await l.conn.request<{ configOptions?: ConfigOption[] }>("session/resume", { ...params, sessionId: input.sessionId });

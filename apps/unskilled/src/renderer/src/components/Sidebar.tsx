@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { IconChevron, IconCompose, IconFolder, IconGear } from "../icons";
+import { IconChevron, IconCompose, IconFolder, IconGear, IconLibrary } from "../icons";
 import { api } from "../api";
 import { useStore } from "../store";
 
@@ -75,6 +75,9 @@ export function Sidebar() {
       <div className="sidebar-foot">
         <button className="button ghost block" onClick={() => void addProject()}>
           <IconFolder /> Add Project…
+        </button>
+        <button className="icon-button" title="Library: skills, MCP servers, agents (⌘⇧L)" onClick={() => useStore.setState({ libraryTab: "skills" })}>
+          <IconLibrary />
         </button>
         <button className="icon-button" title="Settings (⌘,)" onClick={() => useStore.getState().setSettingsOpen(true)}>
           <IconGear />
