@@ -9,6 +9,7 @@ describe("claudeLimitsPatch", () => {
     });
   });
 
+  // The shape Claude Code emitted for a claude.ai login, recorded from the fake API in claude-e2e.test.ts.
   it("includes the other windows the same response carried", () => {
     expect(
       claudeLimitsPatch({
@@ -17,7 +18,9 @@ describe("claudeLimitsPatch", () => {
         utilization: 0.84,
         resetsAt: 1_790_000_000,
         unifiedWindows: { seven_day: { utilization: 0.41, resetsAt: 1_790_500_000 } },
-      }),
+        isUsingOverage: false,
+        surpassedThreshold: 0.8,
+      } as Parameters<typeof claudeLimitsPatch>[0]),
     ).toEqual({
       windows: [
         { id: "five_hour", label: "5-hour", usedPercent: 84, resetsAt: 1_790_000_000_000 },

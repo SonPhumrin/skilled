@@ -12,8 +12,10 @@ import { catalog, closeAfter } from "./helpers";
 
 // The real Claude Code binary (the Agent SDK's platform package) against a
 // fake Messages API, so a whole turn runs without an account. The fake sends
-// the unified rate-limit headers a claude.ai plan gets, to check they arrive
-// as limits without any request of their own.
+// the unified rate-limit headers a claude.ai plan gets. With an API key, as
+// here, Claude Code reports no plan limits (they don't apply), so the meter
+// stays hidden; how a claude.ai login's rate_limit_event reads is covered
+// in limits.test.ts, from the event this fake produced under such a login.
 function fakeAnthropic() {
   const requests: string[] = [];
   const server = createServer((req, res) => {
@@ -53,9 +55,12 @@ function fakeAnthropic() {
   return { server, requests };
 }
 
-function setEnv(vars: Record<string, string>) {
+function setEnv(vars: Record<string, string | undefined>) {
   const previous = Object.fromEntries(Object.keys(vars).map((k) => [k, process.env[k]]));
-  Object.assign(process.env, vars);
+  for (const [k, v] of Object.entries(vars)) {
+    if (v === undefined) delete process.env[k];
+    else process.env[k] = v;
+  }
   closeAfter(() => {
     for (const [k, v] of Object.entries(previous)) {
       if (v === undefined) delete process.env[k];
@@ -65,12 +70,16 @@ function setEnv(vars: Record<string, string>) {
 }
 
 describe("Claude end to end (real Claude Code, fake API)", () => {
-  it("runs a turn and reports plan limits from the response headers", async () => {
+  it("runs a turn, and an API-key session reports no plan limits", async () => {
     const { server, requests } = fakeAnthropic();
     await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
     closeAfter(() => void server.close());
-    // The driver's agent inherits process.env; a scratch config dir keeps the user's settings out.
+    // The driver's agent inherits process.env: drop any Claude Code session
+    // this runs inside (it would make the fake look like a claude.ai login),
+    // and use a scratch config dir to keep the user's settings out.
+    const inherited = Object.keys(process.env).filter((k) => k.startsWith("CLAUDE") || k.startsWith("ANTHROPIC_"));
     setEnv({
+      ...Object.fromEntries(inherited.map((k) => [k, undefined])),
       ANTHROPIC_BASE_URL: `http://127.0.0.1:${(server.address() as AddressInfo).port}`,
       ANTHROPIC_API_KEY: "sk-ant-test",
       CLAUDE_CONFIG_DIR: mkdtempSync(join(tmpdir(), "unskilled-claude-config-")),
@@ -105,14 +114,9 @@ describe("Claude end to end (real Claude Code, fake API)", () => {
     expect(text).toBe("Hello.");
     expect(events.find((e) => e.kind === "assistant-text")).toMatchObject({ text: "Hello." });
     expect(events.at(-1)).toMatchObject({ kind: "turn-end", outputTokens: 3 });
-    expect(limits).toContainEqual({
-      windows: [
-        { id: "five_hour", label: "5-hour", usedPercent: 84, resetsAt: 1_790_000_000_000 },
-        { id: "seven_day", label: "Weekly", usedPercent: 41, resetsAt: 1_790_500_000_000 },
-      ],
-      state: "warning",
-    });
+    expect(limits).toEqual([]);
     // Only the turn's own model calls: no usage endpoint, no polling.
-    expect(requests.every((r) => r === "POST /v1/messages" || r.startsWith("GET /v1/code/"))).toBe(true);
+    expect(requests.length).toBeGreaterThan(0);
+    expect(requests.every((r) => r === "POST /v1/messages")).toBe(true);
   }, 90_000);
 });
