@@ -1,10 +1,15 @@
-import type { LiveUpdate, Project, SkillEntry, StoredEvent, Thread, ThreadEvent, UnskilledApi } from "../../shared/types";
+import type { LiveUpdate, Project, SettingsView, SkillEntry, StoredEvent, Thread, ThreadEvent, UnskilledApi } from "../../shared/types";
 
 /**
  * A fake backend for `npm run preview:ui`: the real renderer in a plain
  * browser, with canned data, so the UI can be looked at and screenshotted
  * without Electron or an agent. `?state=` picks a scene.
  */
+/** Opens the settings sheet for the "settings" scene, once the store exists. */
+function openSettingsSheet(): void {
+  void import("./store").then(({ useStore }) => useStore.getState().setSettingsOpen(true));
+}
+
 export function installMock(): void {
   const params = new URLSearchParams(location.search);
   const scene = params.get("state") ?? "thread";
@@ -12,6 +17,13 @@ export function installMock(): void {
   const listeners = new Set<(u: LiveUpdate) => void>();
   const emit = (u: LiveUpdate) => listeners.forEach((l) => l(u));
   const openTerminals = new Set<string>();
+  let settings: SettingsView = {
+    theme: "system",
+    defaultAgent: null,
+    defaultPermissionMode: "ask",
+    secretsSet: { anthropic: false, deepseek: true, openai: false },
+    secretsEncrypted: true,
+  };
 
   const projects: Project[] =
     scene === "welcome"
@@ -161,6 +173,10 @@ export function installMock(): void {
       setTimeout(() => emit({ type: "terminal-data", id, data: "\x1b[32m~/code/acme-web\x1b[0m on \x1b[35mmain\x1b[0m\r\n❯ npm test\r\n\r\n PASS  src/middleware/rateLimit.test.ts\r\n  ✓ allows 5 attempts (4 ms)\r\n  ✓ returns 429 on the 6th (2 ms)\r\n  ✓ resets after the window (1 ms)\r\n\r\nTests: 3 passed, 3 total\r\n\x1b[32m~/code/acme-web\x1b[0m on \x1b[35mmain\x1b[0m\r\n❯ " }), 50);
     },
     terminalWrite: () => {},
+    getSettings: async () => settings,
+    updateSettings: async (patch) => (settings = { ...settings, ...patch }),
+    setSecret: async (name, value) => (settings = { ...settings, secretsSet: { ...settings.secretsSet, [name]: Boolean(value) } }),
+    openDataFolder: async () => {},
     terminalResize: () => {},
     terminalClose: async () => {},
     getDiff: async () => [
@@ -214,6 +230,7 @@ export function installMock(): void {
 
   // Scenes that need live state once the app has subscribed.
   setTimeout(() => {
+    if (scene === "settings") openSettingsSheet();
     if (scene === "running" || scene === "permission") {
       emit({ type: "running", threadId: "t1", running: true });
       emit({ type: "text-delta", threadId: "t1", text: "Setting `trust proxy` so the limiter sees the real client IP. I'll check how the app is" });

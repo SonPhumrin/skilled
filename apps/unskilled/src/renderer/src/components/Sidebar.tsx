@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { IconChevron, IconCompose, IconFolder } from "../icons";
+import { IconChevron, IconCompose, IconFolder, IconGear } from "../icons";
 import { useStore } from "../store";
 
 export function Sidebar() {
@@ -61,6 +61,9 @@ export function Sidebar() {
       <div className="sidebar-foot">
         <button className="button ghost block" onClick={() => void addProject()}>
           <IconFolder /> Add Project…
+        </button>
+        <button className="icon-button" title="Settings (⌘,)" onClick={() => useStore.getState().setSettingsOpen(true)}>
+          <IconGear />
         </button>
       </div>
     </aside>

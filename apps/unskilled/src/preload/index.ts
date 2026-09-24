@@ -22,6 +22,10 @@ const api: UnskilledApi = {
   terminalWrite: (id, data) => ipcRenderer.send("terminal:write", id, data),
   terminalResize: (id, cols, rows) => ipcRenderer.send("terminal:resize", id, cols, rows),
   terminalClose: (id) => ipcRenderer.invoke("terminal:close", id),
+  getSettings: () => ipcRenderer.invoke("settings:get"),
+  updateSettings: (patch) => ipcRenderer.invoke("settings:update", patch),
+  setSecret: (name, value) => ipcRenderer.invoke("settings:secret", name, value),
+  openDataFolder: () => ipcRenderer.invoke("app:open-data-folder"),
   onUpdate: (listener) => {
     const handler = (_e: Electron.IpcRendererEvent, update: LiveUpdate) => listener(update);
     ipcRenderer.on("unskilled:update", handler);

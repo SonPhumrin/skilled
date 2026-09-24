@@ -3,6 +3,7 @@ import type {
   AgentInfo,
   DiffFile,
   LiveUpdate,
+  PermissionMode,
   PermissionDecision,
   SendRequest,
   SkillEntry,
@@ -33,6 +34,8 @@ export class Service {
     private broadcast: (update: LiveUpdate) => void,
     /** Tools the harness offers the agent this turn (the browser pane's, once it's open). */
     private harnessTools: () => HarnessTool[] = () => [],
+    /** Defaults for new threads, from the user's settings. */
+    private defaults: () => { agent: string | null; permissionMode: PermissionMode } = () => ({ agent: null, permissionMode: "ask" }),
   ) {
     if (!drivers.length) throw new Error("no agent drivers");
     this.drivers = new Map(drivers.map((d) => [d.id, d]));
@@ -56,8 +59,11 @@ export class Service {
 
   createThread(projectId: string, agent?: string): Thread {
     this.store.getProject(projectId);
-    const driver = agent ? this.driverFor(agent) : [...this.drivers.values()][0]!;
-    return this.store.createThread(projectId, driver.id, driver.defaultModel, "ask");
+    const d = this.defaults();
+    const wanted = agent ?? d.agent;
+    // A default agent that's no longer installed falls back to the first one.
+    const driver = (wanted && this.drivers.get(wanted)) || [...this.drivers.values()][0]!;
+    return this.store.createThread(projectId, driver.id, driver.defaultModel, d.permissionMode);
   }
 
   /** Switching agents starts a fresh conversation: sessions don't carry across agents. */

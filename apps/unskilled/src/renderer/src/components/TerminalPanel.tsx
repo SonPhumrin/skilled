@@ -3,11 +3,12 @@ import { Terminal } from "@xterm/xterm";
 import "@xterm/xterm/css/xterm.css";
 import { useEffect, useRef } from "react";
 import { api } from "../api";
+import { isDark } from "../store";
 
 function theme(): Terminal["options"]["theme"] {
   const css = getComputedStyle(document.documentElement);
   const v = (name: string) => css.getPropertyValue(name).trim();
-  const dark = matchMedia("(prefers-color-scheme: dark)").matches;
+  const dark = isDark();
   return {
     background: v("--bg"),
     foreground: v("--text"),
@@ -65,6 +66,7 @@ export function TerminalPanel({ id, cwd, visible }: { id: string; cwd: string | 
     const media = matchMedia("(prefers-color-scheme: dark)");
     const retheme = () => (t.options.theme = theme());
     media.addEventListener("change", retheme);
+    window.addEventListener("unskilled-theme", retheme);
     const observer = new ResizeObserver(() => {
       if (el.offsetParent) f.fit();
     });
@@ -72,6 +74,7 @@ export function TerminalPanel({ id, cwd, visible }: { id: string; cwd: string | 
     return () => {
       observer.disconnect();
       media.removeEventListener("change", retheme);
+      window.removeEventListener("unskilled-theme", retheme);
       off();
       input.dispose();
       resize.dispose();

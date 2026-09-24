@@ -3,6 +3,10 @@
 
 :root {
   color-scheme: light dark;
+}
+:root[data-theme="light"] { color-scheme: light; }
+:root[data-theme="dark"] { color-scheme: dark; }
+:root {
   --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI Variable Text", "Segoe UI", Inter, system-ui, sans-serif;
   --font-display: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI Variable Display", "Segoe UI", Inter, system-ui, sans-serif;
   --mono: ui-monospace, "SF Mono", "Cascadia Code", "JetBrains Mono", Menlo, Consolas, monospace;
@@ -38,8 +42,9 @@
   --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
+/* Dark: when the OS is dark and the user hasn't forced light, or when they forced dark. */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     --accent: #0a84ff;
     --accent-soft: rgb(10 132 255 / 0.2);
     --bg: #1c1c1e;
@@ -58,6 +63,26 @@
     --add-bg: rgb(48 209 88 / 0.09);
     --del-bg: rgb(255 69 58 / 0.1);
   }
+}
+
+:root[data-theme="dark"] {
+  --accent: #0a84ff;
+  --accent-soft: rgb(10 132 255 / 0.2);
+  --bg: #1c1c1e;
+  --bg-sidebar: rgb(30 30 32 / 0.72);
+  --bg-elevated: #2c2c2e;
+  --bg-subtle: #242426;
+  --bg-hover: rgb(255 255 255 / 0.06);
+  --bg-selected: rgb(255 255 255 / 0.1);
+  --text: #f5f5f7;
+  --text-secondary: #a1a1a6;
+  --text-tertiary: #636366;
+  --hairline: rgb(255 255 255 / 0.08);
+  --hairline-strong: rgb(255 255 255 / 0.14);
+  --shadow-card: 0 1px 2px rgb(0 0 0 / 0.3), 0 8px 24px rgb(0 0 0 / 0.3);
+  --shadow-pop: 0 2px 6px rgb(0 0 0 / 0.3), 0 16px 48px rgb(0 0 0 / 0.5);
+  --add-bg: rgb(48 209 88 / 0.09);
+  --del-bg: rgb(255 69 58 / 0.1);
 }
 
 * { box-sizing: border-box; }
@@ -606,3 +631,65 @@ button { cursor: default; }
 .terminal-host { height: 100%; width: 100%; }
 .terminal-host .xterm { height: 100%; }
 .terminal-host .xterm-viewport { background: transparent !important; }
+
+/* ---------- settings ---------- */
+
+.sidebar-foot { display: flex; align-items: center; gap: 4px; }
+.sidebar-foot .button.block { flex: 1; }
+
+.usage {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: start center;
+  padding-top: 72px;
+  background: rgb(0 0 0 / 0.18);
+  animation: fade 160ms var(--ease);
+  -webkit-app-region: no-drag;
+}
+@keyframes fade { from { opacity: 0; } }
+.sheet {
+  width: min(560px, calc(100vw - 48px));
+  max-height: calc(100vh - 120px);
+  overflow-y: auto;
+  background: var(--bg-elevated);
+  border: 1px solid var(--hairline-strong);
+  border-radius: var(--radius-l);
+  box-shadow: var(--shadow-pop);
+  padding: 6px 22px 22px;
+  outline: none;
+  animation: rise 220ms var(--ease);
+  user-select: text;
+}
+.sheet-head { display: flex; align-items: center; justify-content: space-between; padding: 12px 0 4px; }
+.sheet h2 { font: 600 17px var(--font-display); margin: 0; letter-spacing: -0.01em; }
+.sheet section { border-top: 1px solid var(--hairline); padding: 14px 0 6px; margin-top: 10px; }
+.sheet section:first-of-type { border-top: 0; margin-top: 0; }
+.sheet h3 { font-size: 11px; font-weight: 600; color: var(--text-tertiary); letter-spacing: 0.02em; margin: 0 0 8px; }
+.sheet .row { display: flex; align-items: center; gap: 12px; min-height: 36px; }
+.sheet .label { width: 110px; flex-shrink: 0; color: var(--text-secondary); }
+.sheet .value { color: var(--text); display: inline-flex; align-items: center; gap: 6px; }
+.sheet .note { color: var(--text-secondary); font-size: 12px; margin: 2px 0 8px; }
+.secret-form { display: flex; align-items: center; gap: 6px; flex: 1; }
+.text-input {
+  flex: 1;
+  min-width: 0;
+  height: 28px;
+  padding: 0 10px;
+  border-radius: var(--radius-s);
+  border: 1px solid var(--hairline-strong);
+  background: var(--bg);
+  outline: none;
+  font: 12px var(--mono);
+  transition: border-color 150ms var(--ease), box-shadow 150ms var(--ease);
+}
+.text-input:focus { border-color: rgb(10 132 255 / 0.5); box-shadow: 0 0 0 3px var(--accent-soft); }
+.dot-ok { width: 7px; height: 7px; border-radius: 50%; background: var(--success); display: inline-block; }

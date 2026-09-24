@@ -1,8 +1,8 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { BrowserWindow, app, dialog, ipcMain, nativeTheme, shell } from "electron";
-import type { LiveUpdate, PermissionDecision, SendRequest, Thread } from "../shared/types";
+import { BrowserWindow, app, dialog, ipcMain, nativeTheme, safeStorage, shell } from "electron";
+import type { LiveUpdate, PermissionDecision, SecretName, SendRequest, Settings, Thread } from "../shared/types";
 import { spawnSync } from "node:child_process";
 import { createAcpDriver } from "./agents/acp/driver";
 import { createClaudeDriver, resolvePackagedClaudeBinary } from "./agents/claude";
@@ -14,6 +14,7 @@ import { Store } from "./db";
 import { startToolServer, type ToolServer } from "./mcp-http";
 import { TerminalManager } from "./terminal";
 import { Service } from "./service";
+import { SECRET_ENV, SettingsStore } from "./settings";
 import { defaultSkillsCandidates, findSkillsRoot, loadCatalog } from "./skills/catalog";
 import { ensureModelSkillsDir, ensurePlugin } from "./skills/plugin";
 
@@ -79,6 +80,24 @@ async function main(): Promise<void> {
   const userData = app.getPath("userData");
   mkdirSync(userData, { recursive: true });
   const store = new Store(join(userData, "unskilled.db"));
+  const settings = new SettingsStore(join(userData, "settings.json"), {
+    available: safeStorage.isEncryptionAvailable(),
+    encrypt: (s) => safeStorage.encryptString(s).toString("base64"),
+    decrypt: (b) => safeStorage.decryptString(Buffer.from(b, "base64")),
+  });
+  // API keys from settings become environment variables for every agent
+  // process started from now on; a removed key restores what the shell had.
+  const inheritedEnv = Object.fromEntries(Object.values(SECRET_ENV).map((k) => [k, process.env[k]]));
+  const applySecretsToEnv = () => {
+    const fromSettings = settings.env();
+    for (const key of Object.values(SECRET_ENV)) {
+      const value = fromSettings[key] ?? inheritedEnv[key];
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  };
+  applySecretsToEnv();
+  nativeTheme.themeSource = settings.get().theme;
   const root = findSkillsRoot(
     defaultSkillsCandidates({ resourcesPath: app.isPackaged ? process.resourcesPath : undefined, appPath: app.getAppPath() }),
   );
@@ -121,7 +140,30 @@ async function main(): Promise<void> {
       }),
     ),
   ];
-  const service = new Service(store, catalog, drivers, broadcast, enabledTools);
+  const service = new Service(store, catalog, drivers, broadcast, enabledTools, () => {
+    const s = settings.get();
+    return { agent: s.defaultAgent, permissionMode: s.defaultPermissionMode };
+  });
+
+  ipcMain.handle("settings:get", () => settings.view());
+  ipcMain.handle("settings:update", (_e, patch: Partial<Settings>) => {
+    const next = settings.update(patch);
+    nativeTheme.themeSource = next.theme;
+    const view = settings.view();
+    broadcast({ type: "settings", settings: view });
+    return view;
+  });
+  ipcMain.handle("settings:secret", (_e, name: SecretName, value: string | null) => {
+    if (!(name in SECRET_ENV)) throw new Error(`unknown key ${name}`);
+    settings.setSecret(name, value);
+    applySecretsToEnv();
+    // Running agent processes keep the old environment; stop them so the next turn starts fresh.
+    service.dispose();
+    const view = settings.view();
+    broadcast({ type: "settings", settings: view });
+    return view;
+  });
+  ipcMain.handle("app:open-data-folder", () => shell.openPath(userData));
 
   ipcMain.handle("projects:list", () => store.listProjects());
   ipcMain.handle("projects:add", async (event) => {
@@ -218,11 +260,11 @@ async function main(): Promise<void> {
     });
     first.webContents.on("did-attach-webview", () => console.log("smoke: webview attached"));
     // CI smoke test: the window loads, the preload bridge is there, and the
-    // skills catalog answers. Exit 0 only if all three hold.
+    // skills catalog and settings answer. Exit 0 only if everything holds.
     first.webContents.once("did-finish-load", async () => {
       try {
         const ok = await first.webContents.executeJavaScript(
-          "typeof window.unskilled === 'object' && window.unskilled.listSkills().then(s => s.length > 0)",
+          "typeof window.unskilled === 'object' && Promise.all([window.unskilled.listSkills(), window.unskilled.getSettings()]).then(([s, st]) => s.length > 0 && typeof st.theme === 'string')",
         );
         // A packaged build must be able to launch the Claude Code binary the
         // Agent SDK ships, from outside the asar archive.

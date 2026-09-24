@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import type {
+  SettingsView,
   AgentInfo,
   LiveUpdate,
   PermissionRequest,
@@ -15,6 +16,9 @@ interface State {
   threads: Record<string, Thread[]>; // by project id
   skills: SkillEntry[];
   agents: AgentInfo[];
+  settings: SettingsView | null;
+  settingsOpen: boolean;
+  setSettingsOpen(open: boolean): void;
   /** The agent new threads start with: the last one picked. */
   lastAgent: string | null;
   selectedProjectId: string | null;
@@ -62,11 +66,28 @@ function upsertThread(list: Thread[] | undefined, thread: Thread): Thread[] {
 
 let initialized = false;
 
+/** "system" follows the OS; "light"/"dark" pin the CSS tokens (styles/app.css). */
+export function applyTheme(theme: SettingsView["theme"]): void {
+  if (theme === "system") delete document.documentElement.dataset.theme;
+  else document.documentElement.dataset.theme = theme;
+  window.dispatchEvent(new Event("unskilled-theme"));
+}
+
+export function isDark(): boolean {
+  const forced = document.documentElement.dataset.theme;
+  return forced ? forced === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+}
+
 export const useStore = create<State>((set, get) => ({
   projects: [],
   threads: {},
   skills: [],
   agents: [],
+  settings: null,
+  settingsOpen: false,
+  setSettingsOpen(open) {
+    set({ settingsOpen: open });
+  },
   lastAgent: null,
   selectedProjectId: null,
   selectedThreadId: null,
@@ -99,10 +120,16 @@ export const useStore = create<State>((set, get) => ({
     initialized = true;
     // Subscribe before the first await, so no update sent during startup is lost.
     api().onUpdate((u) => get().apply(u));
-    const [projects, skills, agents] = await Promise.all([api().listProjects(), api().listSkills(), api().listAgents()]);
+    const [projects, skills, agents, settings] = await Promise.all([
+      api().listProjects(),
+      api().listSkills(),
+      api().listAgents(),
+      api().getSettings(),
+    ]);
+    applyTheme(settings.theme);
     const threads: Record<string, Thread[]> = {};
     for (const p of projects) threads[p.id] = await api().listThreads(p.id);
-    set({ projects, skills, agents, threads });
+    set({ projects, skills, agents, threads, settings });
     const first = projects[0];
     if (first) {
       await get().selectProject(first.id);
@@ -243,6 +270,10 @@ export const useStore = create<State>((set, get) => ({
           picking: false,
           composerInsert: update.text ? { text: update.text, nonce: (s.composerInsert?.nonce ?? 0) + 1 } : s.composerInsert,
         }));
+        return;
+      case "settings":
+        applyTheme(update.settings.theme);
+        set({ settings: update.settings });
         return;
       case "thread":
         set((s) => ({

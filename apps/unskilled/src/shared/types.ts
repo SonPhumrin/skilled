@@ -24,6 +24,23 @@ export interface Project {
 
 export type PermissionMode = "ask" | "auto-edit" | "full";
 
+export type Theme = "system" | "light" | "dark";
+export type SecretName = "anthropic" | "deepseek" | "openai";
+
+export interface Settings {
+  theme: Theme;
+  /** The agent new threads start with; null = the first available (Claude). */
+  defaultAgent: string | null;
+  defaultPermissionMode: PermissionMode;
+}
+
+/** Settings as the renderer sees them: API keys only as set / not set. */
+export interface SettingsView extends Settings {
+  secretsSet: Record<SecretName, boolean>;
+  /** False where the OS offers no keychain, so keys are stored obfuscated rather than encrypted. */
+  secretsEncrypted: boolean;
+}
+
 export interface Thread {
   id: string;
   projectId: string;
@@ -118,7 +135,8 @@ export type LiveUpdate =
   /** The user picked an element in the browser pane (null: cancelled). */
   | { type: "browser-picked"; text: string | null }
   | { type: "terminal-data"; id: string; data: string }
-  | { type: "terminal-exit"; id: string; code: number };
+  | { type: "terminal-exit"; id: string; code: number }
+  | { type: "settings"; settings: SettingsView };
 
 /** The API the preload script exposes as `window.unskilled`. */
 export interface UnskilledApi {
@@ -145,5 +163,11 @@ export interface UnskilledApi {
   terminalWrite(id: string, data: string): void;
   terminalResize(id: string, cols: number, rows: number): void;
   terminalClose(id: string): Promise<void>;
+  getSettings(): Promise<SettingsView>;
+  updateSettings(patch: Partial<Settings>): Promise<SettingsView>;
+  /** Store an API key (encrypted), or remove it with null. Agents restart to pick it up. */
+  setSecret(name: SecretName, value: string | null): Promise<SettingsView>;
+  /** Show the app's data folder (agents.json, the database) in the file manager. */
+  openDataFolder(): Promise<void>;
   onUpdate(listener: (update: LiveUpdate) => void): () => void;
 }

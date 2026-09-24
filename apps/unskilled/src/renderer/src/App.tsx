@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import type { AgentInfo, PermissionMode } from "../../shared/types";
 import { Composer } from "./components/Composer";
 import { Inspector } from "./components/Inspector";
+import { SettingsSheet } from "./components/SettingsSheet";
 import { Sidebar } from "./components/Sidebar";
 import { ThreadView } from "./components/ThreadView";
 import { IconDiff, IconFolder, IconGlobe, IconSparkle, IconTerminal } from "./icons";
@@ -32,7 +33,10 @@ export function App() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const mod = e.metaKey || e.ctrlKey;
-      if (mod && e.key.toLowerCase() === "n") {
+      if (mod && e.key === ",") {
+        e.preventDefault();
+        useStore.getState().setSettingsOpen(true);
+      } else if (mod && e.key.toLowerCase() === "n") {
         e.preventDefault();
         void newThread();
       } else if (mod && e.shiftKey && e.key.toLowerCase() === "d") {
@@ -64,6 +68,7 @@ export function App() {
             {thread ? thread.title : project ? project.name : "UnSkilled"}
             {thread && project && <span className="sub">{project.name}</span>}
           </div>
+          {thread && <UsageMeter threadId={thread.id} />}
           {thread && (
             <>
               {agents.length > 1 && (
@@ -171,6 +176,7 @@ export function App() {
         )}
       </main>
       {inspectorVisible && <Inspector projectId={project?.id ?? null} />}
+      <SettingsSheet />
     </div>
   );
 }
@@ -179,6 +185,29 @@ export function App() {
 function modelOptions(agents: AgentInfo[], agent: string, current: string): { id: string; label: string }[] {
   const list = agents.find((a) => a.id === agent)?.models ?? [];
   return list.some((m) => m.id === current) ? list : [{ id: current, label: current }, ...list];
+}
+
+/** What this thread has cost so far, summed over its turns. Quiet until there's something to show. */
+function UsageMeter({ threadId }: { threadId: string }) {
+  const events = useStore((s) => s.events[threadId]);
+  let input = 0;
+  let output = 0;
+  let cost = 0;
+  let turns = 0;
+  for (const e of events ?? []) {
+    if (e.event.kind !== "turn-end") continue;
+    turns++;
+    input += e.event.inputTokens;
+    output += e.event.outputTokens;
+    cost += e.event.costUsd ?? 0;
+  }
+  if (!turns) return null;
+  const k = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(n >= 100_000 ? 0 : 1)}k` : String(n));
+  return (
+    <span className="usage" title={`${turns} turn${turns === 1 ? "" : "s"} · ${input.toLocaleString()} input and ${output.toLocaleString()} output tokens`}>
+      {k(input + output)} tokens{cost > 0 ? ` · $${cost.toFixed(2)}` : ""}
+    </span>
+  );
 }
 
 function Hint({ skill, d }: { skill: string; d: string }) {

@@ -50,3 +50,6 @@ export const IconTarget = ({ size = 16 }: P) =>
 
 export const IconTerminal = ({ size = 16 }: P) =>
   svg(size, <><rect x="2" y="3" width="12" height="10" rx="2" /><path d="m5 6.5 2 1.5-2 1.5M8.5 10h2.5" /></>);
+
+export const IconGear = ({ size = 16 }: P) =>
+  svg(size, <><circle cx="8" cy="8" r="2.2" /><path d="M8 1.8v1.6M8 12.6v1.6M1.8 8h1.6M12.6 8h1.6M3.6 3.6l1.1 1.1M11.3 11.3l1.1 1.1M3.6 12.4l1.1-1.1M11.3 4.7l1.1-1.1" /></>);
