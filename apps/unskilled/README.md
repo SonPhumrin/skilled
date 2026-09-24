@@ -12,6 +12,10 @@ The app follows the contract in [HARNESS.md](../../HARNESS.md):
 - **User-invoked skills (23)** never go to the agent. The `/` menu lists them from `skills.json`. When you pick one, the app puts the skill's body into your message, the same thing Claude Code does for a typed `/command`.
 - **git-guardrails** runs as a pre-tool hook on every shell command the agent issues. It needs Python 3; without it the guard is off.
 
+## Command palette
+
+⌘K (Ctrl+K on Windows and Linux) opens one search box over everything: actions (new thread, the side panel's tabs, permission mode, agent, model, theme), skilled's workflow skills, every thread in every project, and the projects themselves. Arrow keys move, Return runs, Esc closes. With nothing typed it shows the actions and your five most recent threads. Picking a skill puts it in the current thread's message box, or starts a thread with it when none is open.
+
 ## Settings
 
 Settings (⌘, or the gear in the sidebar) is one sheet:
@@ -70,7 +74,7 @@ pnpm typecheck
 
 Claude uses your existing Claude Code login (run `claude` once in a terminal), or `ANTHROPIC_API_KEY`. It reads your usual Claude Code settings and `CLAUDE.md`.
 
-To look at the UI without Electron or an agent: `pnpm --filter unskilled preview:ui`, then open `http://localhost:5199/?state=thread`. Other states: `permission`, `running`, `project`, `welcome`, `settings`, `update`. This uses canned data from `src/renderer/src/mock.ts`.
+To look at the UI without Electron or an agent: `pnpm --filter unskilled preview:ui`, then open `http://localhost:5199/?state=thread`. Other states: `permission`, `running`, `project`, `welcome`, `settings`, `update`, `palette`. This uses canned data from `src/renderer/src/mock.ts`.
 
 ## Building installers
 
@@ -114,7 +118,7 @@ CI runs typecheck, tests, packaging, and a smoke test of the packaged app on all
 | `src/main/guard.ts` | git-guardrails pre-tool hook |
 | `src/preload/` | The `window.unskilled` bridge |
 | `src/shared/types.ts` | The main ↔ renderer contract |
-| `src/renderer/` | React UI. Hand-written CSS in `styles/app.css`, state in `store.ts` |
+| `src/renderer/` | React UI. Hand-written CSS in `styles/app.css`, state in `store.ts`, the command palette's search in `palette.ts` |
 
 ## Stack
 
@@ -123,4 +127,4 @@ Electron 44 (the same Chromium on every OS, which the built-in browser needs), R
 ## Roadmap
 
 - **Milestone 2:** ~~the built-in browser pane~~, ~~the generic ACP driver~~, ~~browser tools for ACP agents and Codex~~, ~~the element picker~~, ~~Codex~~, and ~~the terminal tab~~ (done).
-- **Milestone 3:** ~~settings~~, ~~a per-thread view of token usage~~, ~~an app icon~~, ~~auto-update~~, ~~signing and notarization~~ (done).
+- **Milestone 3:** ~~settings~~, ~~a per-thread view of token usage~~, ~~an app icon~~, ~~auto-update~~, ~~signing and notarization~~, ~~the ⌘K command palette~~ (done).

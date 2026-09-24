@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import type { AgentInfo, PermissionMode } from "../../shared/types";
+import { CommandPalette } from "./components/CommandPalette";
 import { Composer } from "./components/Composer";
 import { Inspector } from "./components/Inspector";
 import { SettingsSheet } from "./components/SettingsSheet";
@@ -29,11 +30,15 @@ export function App() {
     void init();
   }, [init]);
 
-  // ⌘N / Ctrl+N: new thread. ⌘⇧D: changes. Esc: stop the running turn.
+  // ⌘K: command palette. ⌘N / Ctrl+N: new thread. ⌘⇧D: changes. Esc: stop the running turn.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const mod = e.metaKey || e.ctrlKey;
-      if (mod && e.key === ",") {
+      if (mod && !e.shiftKey && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        const s = useStore.getState();
+        s.setPaletteOpen(!s.paletteOpen);
+      } else if (mod && e.key === ",") {
         e.preventDefault();
         useStore.getState().setSettingsOpen(true);
       } else if (mod && e.key.toLowerCase() === "n") {
@@ -48,7 +53,7 @@ export function App() {
       } else if (mod && e.shiftKey && e.key.toLowerCase() === "b") {
         e.preventDefault();
         showInspector("browser");
-      } else if (e.key === "Escape" && running && !document.querySelector(".skill-menu")) {
+      } else if (e.key === "Escape" && running && !document.querySelector(".skill-menu, .palette, .sheet")) {
         void interrupt();
       }
     };
@@ -177,6 +182,7 @@ export function App() {
       </main>
       {inspectorVisible && <Inspector projectId={project?.id ?? null} />}
       <SettingsSheet />
+      <CommandPalette />
     </div>
   );
 }

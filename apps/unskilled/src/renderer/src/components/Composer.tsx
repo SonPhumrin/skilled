@@ -42,6 +42,17 @@ export function Composer({ threadId }: { threadId: string }) {
     setSkill(pending ? (useStore.getState().skills.find((s) => s.name === pending) ?? null) : null);
   }, [threadId]);
 
+  // A skill picked from the command palette while this thread is open.
+  const pendingSkill = useStore((s) => s.pendingSkill);
+  useEffect(() => {
+    if (!pendingSkill) return;
+    const name = useStore.getState().takePendingSkill();
+    const entry = useStore.getState().skills.find((s) => s.name === name);
+    if (!entry) return;
+    setSkill(entry);
+    area.current?.focus();
+  }, [pendingSkill]);
+
   // A picked element lands at the end of whatever is being written.
   useEffect(() => {
     if (!insert) return;

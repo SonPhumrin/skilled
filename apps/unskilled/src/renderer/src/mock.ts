@@ -234,6 +234,7 @@ export function installMock(): void {
   // Scenes that need live state once the app has subscribed.
   setTimeout(() => {
     if (scene === "settings") openSettingsSheet();
+    if (scene === "palette") void import("./store").then(({ useStore }) => useStore.getState().setPaletteOpen(true));
     if (scene === "running" || scene === "permission") {
       emit({ type: "running", threadId: "t1", running: true });
       emit({ type: "text-delta", threadId: "t1", text: "Setting `trust proxy` so the limiter sees the real client IP. I'll check how the app is" });

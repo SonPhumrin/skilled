@@ -21,6 +21,8 @@ interface State {
   settingsOpen: boolean;
   setSettingsOpen(open: boolean): void;
   appUpdate: AppUpdateStatus | null;
+  paletteOpen: boolean;
+  setPaletteOpen(open: boolean): void;
   /** The agent new threads start with: the last one picked. */
   lastAgent: string | null;
   selectedProjectId: string | null;
@@ -91,6 +93,10 @@ export const useStore = create<State>((set, get) => ({
     set({ settingsOpen: open });
   },
   appUpdate: null,
+  paletteOpen: false,
+  setPaletteOpen(open) {
+    set({ paletteOpen: open });
+  },
   lastAgent: null,
   selectedProjectId: null,
   selectedThreadId: null,
