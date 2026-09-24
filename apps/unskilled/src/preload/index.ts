@@ -37,6 +37,8 @@ const api: UnskilledApi = {
   setMcpServerEnabled: (name, enabled) => ipcRenderer.invoke("mcp:enable", name, enabled),
   testMcpServer: (name) => ipcRenderer.invoke("mcp:test", name),
   revealPath: (path) => ipcRenderer.invoke("app:reveal", path),
+  listEditors: () => ipcRenderer.invoke("editors:list"),
+  openInEditor: (target, editor) => ipcRenderer.invoke("editors:open", target, editor),
   installUpdate: () => ipcRenderer.invoke("app:install-update"),
   onUpdate: (listener) => {
     const handler = (_e: Electron.IpcRendererEvent, update: LiveUpdate) => listener(update);

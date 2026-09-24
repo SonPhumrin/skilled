@@ -1,8 +1,9 @@
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { homedir } from "node:os";
+import { isAbsolute, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { BrowserWindow, app, dialog, ipcMain, nativeTheme, safeStorage, shell } from "electron";
-import type { LiveUpdate, McpOverview, McpServerEntry, PermissionDecision, SecretName, SendRequest, Settings, Thread } from "../shared/types";
+import type { LiveUpdate, McpOverview, McpServerEntry, OpenResult, PermissionDecision, SecretName, SendRequest, Settings, Thread } from "../shared/types";
 import { spawnSync } from "node:child_process";
 import { createAcpDriver } from "./agents/acp/driver";
 import { createClaudeDriver, resolvePackagedClaudeBinary } from "./agents/claude";
@@ -17,6 +18,7 @@ import { TerminalManager } from "./terminal";
 import { Service } from "./service";
 import { SECRET_ENV, SettingsStore } from "./settings";
 import { agentCatalog, skillDetail } from "./library";
+import { Editors, realHost } from "./editors";
 import { readExternalMcp } from "./mcp/external";
 import { BUILT_IN_SERVER, McpServerStore, testServer, viewOf } from "./mcp/servers";
 import { Updater, type UpdaterBackend } from "./updater";
@@ -227,6 +229,27 @@ async function main(): Promise<void> {
     const entry = mcpStore.list().find((s) => s.name === name);
     return entry ? testServer(entry.spec) : { ok: false, tools: [], error: "No such server." };
   });
+  // Open in editor. The agents' API keys (set from Settings) stay out of the editor's environment.
+  const editors = new Editors(realHost(), () => Object.keys(settings.env()));
+  ipcMain.handle("editors:list", () => editors.list());
+  ipcMain.handle(
+    "editors:open",
+    async (_e, target: { projectId: string | null; path: string; line?: number; column?: number }, editorId?: string): Promise<OpenResult> => {
+      const base = projectPathOf(target.projectId);
+      const raw = target.path.startsWith("~/") ? join(homedir(), target.path.slice(2)) : target.path;
+      const path = isAbsolute(raw) ? raw : base ? resolve(base, raw) : null;
+      if (!path || !existsSync(path)) return { ok: false, error: `${target.path} doesn't exist.` };
+      const line = Number.isInteger(target.line) && target.line! > 0 ? target.line : undefined;
+      const column = line && Number.isInteger(target.column) && target.column! > 0 ? target.column : undefined;
+      const res = await editors.open({ path, line, column }, editorId ?? settings.get().editor);
+      // Picking an editor makes it the default from then on.
+      if (res.ok && editorId && editorId !== settings.get().editor) {
+        settings.update({ editor: editorId });
+        broadcast({ type: "settings", settings: settings.view() });
+      }
+      return res;
+    },
+  );
   ipcMain.handle("app:reveal", (_e, path: string) => {
     if (typeof path === "string" && existsSync(path)) shell.showItemInFolder(path);
   });

@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import type {
+  EditorInfo,
   AgentLimits,
   AppUpdateStatus,
   SettingsView,
@@ -28,6 +29,13 @@ interface State {
   limits: Record<string, AgentLimits>;
   paletteOpen: boolean;
   setPaletteOpen(open: boolean): void;
+  /** Installed editors, for "Open in". */
+  editors: EditorInfo[];
+  /** A short message at the bottom of the window (an editor that didn't open). */
+  notice: string | null;
+  showNotice(text: string): void;
+  /** Open a file (relative to the project, at a line) or the project itself in an editor. */
+  openInEditor(target: { path?: string; line?: number; column?: number }, editor?: string): Promise<void>;
   /** The Library sheet's tab, or null when it's closed. */
   libraryTab: LibraryTab | null;
   /** A skill for the Library to show first. */
@@ -78,6 +86,7 @@ function upsertThread(list: Thread[] | undefined, thread: Thread): Thread[] {
 }
 
 let initialized = false;
+let noticeTimer: ReturnType<typeof setTimeout> | undefined;
 
 /** "system" follows the OS; "light"/"dark" pin the CSS tokens (styles/app.css). */
 export function applyTheme(theme: SettingsView["theme"]): void {
@@ -106,6 +115,21 @@ export const useStore = create<State>((set, get) => ({
   paletteOpen: false,
   libraryTab: null,
   librarySkill: null,
+  editors: [],
+  notice: null,
+  showNotice(text) {
+    set({ notice: text });
+    clearTimeout(noticeTimer);
+    noticeTimer = setTimeout(() => set({ notice: null }), 3500);
+  },
+  async openInEditor(target, editor) {
+    const s = get();
+    const project = s.projects.find((p) => p.id === s.selectedProjectId);
+    const path = target.path ?? project?.path;
+    if (!path) return;
+    const res = await api().openInEditor({ projectId: s.selectedProjectId, path, line: target.line, column: target.column }, editor);
+    if (!res.ok) get().showNotice(res.error);
+  },
   setPaletteOpen(open) {
     set({ paletteOpen: open });
   },
@@ -149,6 +173,9 @@ export const useStore = create<State>((set, get) => ({
       api().updateStatus(),
       api().listLimits(),
     ]);
+    void api()
+      .listEditors()
+      .then((editors) => set({ editors }));
     applyTheme(settings.theme);
     const threads: Record<string, Thread[]> = {};
     for (const p of projects) threads[p.id] = await api().listThreads(p.id);

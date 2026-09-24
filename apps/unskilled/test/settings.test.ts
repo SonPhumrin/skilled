@@ -20,9 +20,9 @@ describe("SettingsStore", () => {
   it("starts from defaults and persists updates", () => {
     const file = fresh();
     const s = new SettingsStore(file, box);
-    expect(s.get()).toEqual({ theme: "system", defaultAgent: null, defaultPermissionMode: "ask", autoUpdate: true });
-    s.update({ theme: "dark", defaultAgent: "codex", defaultPermissionMode: "auto-edit", autoUpdate: false });
-    expect(new SettingsStore(file, box).get()).toEqual({ theme: "dark", defaultAgent: "codex", defaultPermissionMode: "auto-edit", autoUpdate: false });
+    expect(s.get()).toEqual({ theme: "system", defaultAgent: null, defaultPermissionMode: "ask", autoUpdate: true, editor: null });
+    s.update({ theme: "dark", defaultAgent: "codex", defaultPermissionMode: "auto-edit", autoUpdate: false, editor: "zed" });
+    expect(new SettingsStore(file, box).get()).toEqual({ theme: "dark", defaultAgent: "codex", defaultPermissionMode: "auto-edit", autoUpdate: false, editor: "zed" });
   });
 
   it("ignores invalid values", () => {

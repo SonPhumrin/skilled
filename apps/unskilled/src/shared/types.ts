@@ -34,7 +34,16 @@ export interface Settings {
   defaultPermissionMode: PermissionMode;
   /** Download new versions in the background and install them on quit. */
   autoUpdate: boolean;
+  /** The editor "Open in editor" uses; null = the first one found. */
+  editor: string | null;
 }
+
+export interface EditorInfo {
+  id: string;
+  label: string;
+}
+
+export type OpenResult = { ok: true; editor: string } | { ok: false; error: string };
 
 /** How to start an MCP server: a local command, or a URL (Streamable HTTP). */
 export type McpServerSpec =
@@ -295,6 +304,14 @@ export interface UnskilledApi {
   setMcpServerEnabled(name: string, enabled: boolean): Promise<McpOverview>;
   testMcpServer(name: string): Promise<McpTestResult>;
   revealPath(path: string): Promise<void>;
+  /** Installed editors, in the picker's order. */
+  listEditors(): Promise<EditorInfo[]>;
+  /**
+   * Open a file (at a line) or folder in an editor: the one given, else the
+   * last one used, else the first found. A relative path is taken from the
+   * project's folder.
+   */
+  openInEditor(target: { projectId: string | null; path: string; line?: number; column?: number }, editor?: string): Promise<OpenResult>;
   /** Quit and install the downloaded update. */
   installUpdate(): Promise<void>;
   onUpdate(listener: (update: LiveUpdate) => void): () => void;

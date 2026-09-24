@@ -188,6 +188,7 @@ export function App() {
       </main>
       {inspectorVisible && <Inspector projectId={project?.id ?? null} />}
       <SettingsSheet />
+      <Notice />
       <Library />
       <CommandPalette />
     </div>
@@ -254,6 +255,15 @@ function LimitMeter({ agent }: { agent: string }) {
       {text}
     </span>
   );
+}
+
+function Notice() {
+  const text = useStore((s) => s.notice);
+  return text ? (
+    <div className="notice" role="status">
+      {text}
+    </div>
+  ) : null;
 }
 
 function Hint({ skill, d }: { skill: string; d: string }) {

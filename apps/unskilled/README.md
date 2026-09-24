@@ -30,6 +30,20 @@ Add a server in the Library (a command, or a URL for Streamable HTTP, plus env v
 
 Changing the list reloads the agent's session at the next message, so a running conversation picks it up. **Test** connects and lists the server's tools. Switching a server off keeps it without passing it on. The servers live in `mcp.json` in the data folder, in the same shape as Claude Code's `.mcp.json`, so entries copy across; the file is readable only by you.
 
+## Open in editor
+
+- **Changes panel:** **Open in <editor>** opens the project, and its menu lists every editor found, plus Show in Finder / File Explorer / Files. Each changed file has an open button that opens it at its first change, and clicking a hunk header opens that spot.
+- **In the conversation:** file names in inline code (`src/auth.ts:42`) and the paths on Read/Edit/Write rows are links that open the file at that line.
+- **⌘K:** has Open Project in … for each editor.
+
+Editors found: Cursor, VS Code (and Insiders), Windsurf, VSCodium, Zed, Sublime Text, the JetBrains IDEs (IntelliJ IDEA, WebStorm, PyCharm, GoLand, Rider, CLion, RustRover, PhpStorm, RubyMine), and Xcode on macOS.
+
+The last editor you pick becomes the default; Settings → Editor changes it. How it works:
+
+- **Finding editors without PATH.** Apps started from the Dock or Start menu don't get your shell's PATH, so the app also looks where installers put editors: `.app` bundles in `/Applications` and `~/Applications`, Program Files and `%LOCALAPPDATA%\Programs` (including versioned JetBrains folders), `~/.local/bin`, `/snap/bin` and flatpak on Linux, and JetBrains Toolbox's scripts on every OS.
+- **Jumping to the line.** Each editor family gets its own syntax: `--goto file:line:col` for VS Code and its forks, `file:line:col` for Zed and Sublime, `--line N --column M file` for JetBrains, and `xed --line N` for Xcode.
+- **Starting the editor.** It runs detached, without the API keys you saved in Settings and without Electron's own variables in its environment. Windows `.cmd` launchers go through `cmd.exe` with every argument quoted. If an editor was uninstalled since the app looked, it looks again.
+
 ## Command palette
 
 ⌘K (Ctrl+K on Windows and Linux) opens one search box over everything: actions (new thread, the side panel's tabs, permission mode, agent, model, theme), skilled's workflow skills, every thread in every project, and the projects themselves. Arrow keys move, Return runs, Esc closes. With nothing typed it shows the actions and your five most recent threads. Picking a skill puts it in the current thread's message box, or starts a thread with it when none is open.
@@ -139,6 +153,7 @@ CI runs typecheck, tests, packaging, and a smoke test of the packaged app on all
 | `src/main/updater.ts` | Background updates from GitHub releases (electron-updater) |
 | `src/main/mcp/` | Your MCP servers (`mcp.json`), each agent's format for them, the Test connection, and reading the agents' own MCP config |
 | `src/main/library.ts` | What the Library shows: skill details and the agent catalog |
+| `src/main/editors.ts` | Finding editors and opening files in them at a line |
 | `src/main/settings.ts` | Settings and encrypted API keys, in `settings.json` in the data folder |
 | `src/main/db.ts` | SQLite store (`node:sqlite`): projects, threads, events |
 | `src/main/git.ts` | Working-tree diff for the Changes panel |

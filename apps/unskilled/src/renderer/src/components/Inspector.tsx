@@ -2,6 +2,7 @@ import { useState } from "react";
 import { IconRefresh } from "../icons";
 import { useStore } from "../store";
 import { BrowserPanel } from "./BrowserPanel";
+import { OpenIn } from "./OpenIn";
 import { DiffPanel } from "./DiffPanel";
 import { TerminalPanel } from "./TerminalPanel";
 
@@ -30,6 +31,7 @@ export function Inspector({ projectId }: { projectId: string | null }) {
           </button>
         </div>
         <span className="grow" />
+        {tab === "changes" && projectId && <OpenIn />}
         {tab === "changes" && (
           <button className="icon-button" title="Refresh" onClick={() => setRefreshKey((k) => k + 1)}>
             <IconRefresh />

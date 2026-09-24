@@ -59,3 +59,6 @@ export const IconLibrary = ({ size = 16 }: P) =>
 
 export const IconCopy = ({ size = 14 }: P) =>
   svg(size, <><rect x="5" y="5" width="8.5" height="8.5" rx="1.5" /><path d="M11 5V3.8A1.3 1.3 0 0 0 9.7 2.5H3.8a1.3 1.3 0 0 0-1.3 1.3v5.9A1.3 1.3 0 0 0 3.8 11H5" /></>);
+
+export const IconOpen = ({ size = 14 }: P) =>
+  svg(size, <><path d="M9 2.5h4.5V7" /><path d="M13.5 2.5 7.5 8.5" /><path d="M11.5 9.5v2.5a1.5 1.5 0 0 1-1.5 1.5H4A1.5 1.5 0 0 1 2.5 12V6A1.5 1.5 0 0 1 4 4.5h2.5" /></>);

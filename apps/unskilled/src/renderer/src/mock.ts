@@ -22,6 +22,7 @@ export function installMock(): void {
     defaultAgent: null,
     defaultPermissionMode: "ask",
     autoUpdate: true,
+    editor: null,
     secretsSet: { anthropic: false, deepseek: true, openai: false },
     secretsEncrypted: true,
   };
@@ -81,7 +82,7 @@ export function installMock(): void {
       ev(17, {
         kind: "assistant-text",
         text: [
-          "Done. The limiter is a small middleware keyed by client IP:",
+          "Done. The limiter is a small middleware keyed by client IP, in `src/middleware/rateLimit.ts:3`:",
           "",
           "```ts",
           "export const loginLimiter = rateLimit({ windowMs: 60_000, max: 5 });",
@@ -266,6 +267,16 @@ export function installMock(): void {
         : { ok: false, tools: [], error: "401 Unauthorized" };
     },
     revealPath: async () => {},
+    listEditors: async () => [
+      { id: "cursor", label: "Cursor" },
+      { id: "vscode", label: "VS Code" },
+      { id: "zed", label: "Zed" },
+      { id: "webstorm", label: "WebStorm" },
+    ],
+    openInEditor: async (target, editor) => {
+      (window as unknown as { __opened?: unknown[] }).__opened = [...((window as unknown as { __opened?: unknown[] }).__opened ?? []), { ...target, editor }];
+      return target.path.includes("missing") ? { ok: false, error: `${target.path} doesn't exist.` } : { ok: true, editor: editor ?? "cursor" };
+    },
     updateStatus: async () => ({ current: "0.1.0", ready: scene === "update" ? "0.2.0" : null, supported: true }),
     installUpdate: async () => {},
     terminalResize: () => {},
