@@ -1,4 +1,5 @@
 import { mkdirSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import type { PermissionDecision, PermissionMode, ThreadEvent } from "../src/shared/types";
@@ -23,7 +24,9 @@ function turn(prompt: string, over: Partial<TurnInput> = {}) {
   const controller = new AbortController();
   const input: TurnInput = {
     threadId: "thread-1",
-    cwd: tempDir(),
+    // Not a per-test temp dir: Windows can't delete a directory that a
+    // still-exiting agent process has as its working directory.
+    cwd: tmpdir(),
     prompt,
     sessionId: null,
     model: "default",
